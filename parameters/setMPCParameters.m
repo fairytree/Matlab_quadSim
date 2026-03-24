@@ -14,27 +14,13 @@
 % Matlab check the dimension integrety using defaul solver which might
 % cause discrepency.2) Make PathFG not working (PathFG_max_N = 0), this is
 % done automatically below. 
-
-init_step_flag = true;
+solver = 2; % read the above NOTE first!
 
 if(solver == 1 || solver == 2 || solver == 4)
     x_init = [start; 0; 0; 0; 0; 0; 0];
     u_init = [0; 0; 0; 0];
     decision_variables_init = repmat([x_init; u_init], prediction_horizon_MPC, 1);
     decision_variables_init = [decision_variables_init; x_init];
-    auxi_ref_list = linspace(1, size(path, 1), prediction_horizon_MPC + 1);
-    disp("auxi_ref_list");
-    disp(auxi_ref_list);
-    if(prediction_horizon_MPC > PathFG_max_N)
-        % Fill MPC states using path waypoints
-        for k = 1:prediction_horizon_MPC
-            auxi_ref = auxi_ref_list(k);                     % percentage along path
-            p = getVPosition(auxi_ref, path);           % [x; y; z]
-            idx = (k-1)*13 + 1;                  % state block start
-            decision_variables_init(idx:idx+2) = p(1:3);
-        end
-    end
-
 elseif(solver == 3)
     u_init = [0; 0; 0; 0];
     decision_variables_init = repmat(u_init, prediction_horizon_MPC, 1);
@@ -42,7 +28,8 @@ elseif(solver == 5)
     x_init = [start; 0; 0; 0; 0; 0; 0];
     u_init = [0; 0; 0; 0];
     decision_variables_init = repmat([x_init; u_init], prediction_horizon_MPC, 1);
-    decision_variables_init = [decision_variables_init; x_init; x_init(1:3)]; % Add artificial reference (x, y, z).
+    decision_variables_init = [decision_variables_init; x_init];
+    decision_variables_init = [decision_variables_init; x_init(1:3)]; % Add artificial reference (x, y, z).
     PathFG_max_N = 0;
 end
 
@@ -50,13 +37,13 @@ end
 %% Set MPC Parameters
 
 if(solver == 1 || solver == 2 || solver == 4)
-    Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC, R_MPC, P_matrix);
+    Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC, R_MPC, LQR_P_matrix_full);
     Aeq = get_linear_equality_constraints_matrix(prediction_horizon_MPC, Q_MPC, R_MPC, A_discrete_outer, B_discrete_outer);
     lb = get_X_lower_bounds(prediction_horizon_MPC, Q_MPC, R_MPC, x_min, u_min);  % lower bounds
     ub = get_X_upper_bounds(prediction_horizon_MPC, Q_MPC, R_MPC, x_max, u_max);  % upper bounds
 
 elseif(solver == 5)
-    Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC, R_MPC, P_matrix);
+    Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC, R_MPC, LQR_P_matrix_full);
     Aeq = get_linear_equality_constraints_matrix(prediction_horizon_MPC, Q_MPC, R_MPC, A_discrete_outer, B_discrete_outer);
     Aeq = [Aeq; zeros(3, size(Aeq,2))]; % for artificial reference
     Aeq = [Aeq, zeros(size(Aeq,1), 3)];
@@ -72,7 +59,7 @@ elseif(solver == 3)
 
     A_hat = getAHat(A_discrete_outer, prediction_horizon_MPC);
     B_hat = getBHat(A_discrete_outer, B_discrete_outer, prediction_horizon_MPC);
-    H_hat = getHHat(Q_MPC, P_matrix, prediction_horizon_MPC);
+    H_hat = getHHat(Q_MPC, LQR_P_matrix_full, prediction_horizon_MPC);
     R_hat = getRHat(R_MPC, prediction_horizon_MPC);
     
     H_MPC = B_hat' * H_hat * B_hat + R_hat;
@@ -149,7 +136,7 @@ function B_hat = getBHat(A_discrete_outer, B_discrete_outer, prediction_horizon_
 end
 
 
-function H_hat = getHHat(Q_MPC, P_matrix, prediction_horizon_MPC)
+function H_hat = getHHat(Q_MPC, LQR_P_matrix_full, prediction_horizon_MPC)
     % Define matrix H_hat
     %[Q,   0,  ...   0,   0;
     % 0,   Q,  ...   0,   0;
@@ -174,7 +161,7 @@ function H_hat = getHHat(Q_MPC, P_matrix, prediction_horizon_MPC)
 
     % fill the last row
     H_hat(rows_Q * prediction_horizon_MPC + 1 : rows_Q * (prediction_horizon_MPC + 1), ...
-        cols_Q * prediction_horizon_MPC + 1 : cols_Q * (prediction_horizon_MPC + 1)) = P_matrix;
+        cols_Q * prediction_horizon_MPC + 1 : cols_Q * (prediction_horizon_MPC + 1)) = LQR_P_matrix_full;
 
     % H_hat = sparse(H_hat);
 end
@@ -208,7 +195,7 @@ end
 
 %% Get matrices for MPC_quadprog cost function and constraints
 
-function Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC, R_MPC, P_matrix)
+function Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC, R_MPC, LQR_P_matrix_full)
     % get weight_matrix:
     %[Q, 0, 0, 0, ..., 0;
     % 0, R, 0, 0, ..., 0;
@@ -229,7 +216,7 @@ function Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC,
 
     % matrix of Q's, R's and P
     Q_R_P_weight_matrix = [Q_R_weight_matrices    , zeros(rows_Q_R, cols_Q);
-                           zeros(rows_Q, cols_Q_R), P_matrix              ];
+                           zeros(rows_Q, cols_Q_R), LQR_P_matrix_full              ];
 
     % Old Code
 
@@ -246,7 +233,7 @@ function Q_R_P_weight_matrix = getQRPWeightMatrix(prediction_horizon_MPC, Q_MPC,
     % 
     % % last row
     % Q_R_P_weight_matrix(prediction_horizon_MPC * (rows_R + rows_Q) + 1 : prediction_horizon_MPC * (rows_R + rows_Q) + rows_Q,...
-    %     prediction_horizon_MPC * (cols_R + cols_Q) + 1 : prediction_horizon_MPC * (cols_R + cols_Q) + cols_Q) = P_matrix;
+    %     prediction_horizon_MPC * (cols_R + cols_Q) + 1 : prediction_horizon_MPC * (cols_R + cols_Q) + cols_Q) = LQR_P_matrix_full;
 
 end
 

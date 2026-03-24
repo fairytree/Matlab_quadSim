@@ -1,18 +1,58 @@
-%% TODO
+clear;
+close all;
+clc;
 
-% 1. Store the distance between every node and the goal and sort the the
-%    tree according to this distance every time a new node is generated
-%    FATAL ERROR: because when a new node is created, the index are
-%    changed, the parent indices are all messed up and findOptimalPath
-%    breaks
-
-tic
 
 %% Variables
-goal = goal';
+
+% NOTE: start and goal must be row vectors
+% Define the start and goal points (3D)
+start = [0, 0, 0];
+goal = [10, 10, 10];
+
+% color of the tree
+tree_color = "blue";
+
+% define how often the goal is chosen as the random point
+goal_frequency_rrt = 0.5;
+
+% maximum distance for which RRT* would consider as a neighbor
+max_distance_rrt_star = 1;
+
+% whether or not to optimize tree_rrt using RRT*
+rrt_star_inclusion = 1;
+
+% whether or not to animate the tree expanding
+animate_rrt = 0;
+
+% Define the maximum number of iterations
+max_iterations_rrt = 100000;
+
+% Define the step size
+step_size_rrt = 0.1;
+
+% maximum distance from the goal for which a point can be considered near
+% the goal
+threshold_rrt = 1;
+
+% Initialize the tree with the start point (the fourth value represents
+% how away it is from start, and is used to find the optimal path later,
+% and the fifth value represents the index of its parent node)
+tree_rrt = [start, 0, 0];
+
+% obstacle sizes and positions
+obstacles = 5*[1.5, 0.9,  8/5, 2.0, 2.5;...
+             1.5, 0.9,  8/5, 1.0, 2.5;...
+             0.3,  1, 8/5,  0.5, 2.0];
+agent_size = 0.08;
+safety_margins = [0.1, 0.1, 0.1, 0.1, 0.1] + agent_size;
+obstacle_sizes = 7*[0.1, 0.1, 0.3, 0.1, 0.1];
 
 % seed of the random number generator for reproducibility
 rng(0);
+
+% whether or not to plot the nodes
+plot_nodes = false;
 
 
 %% Visualization
@@ -27,7 +67,7 @@ axis equal;
 hold on;
 xlim([start(1)-1 goal(1)+1]);
 ylim([start(2)-1 goal(2)+1]);
-zlim([start(3)-1 goal(3)+1.2]);
+zlim([start(3)-1 goal(3)+1]);
 
 title('RRT')
 xlabel('x');
@@ -39,31 +79,28 @@ plot3(start(1), start(2), start(3), 'go', 'MarkerSize', 10);
 plot3(goal(1), goal(2), goal(3), 'ro', 'MarkerSize', 10);
 
 % Plot obstacles with their respective sizes
-for i = 1:size(obstacles, 2)
-    [x, y, z] = sphere(25);
-    x = x * obstacle_sizes(i) + obstacles(1, i);
-    y = y * obstacle_sizes(i) + obstacles(2, i);
-    z = z * obstacle_sizes(i) + obstacles(3, i);
+    for i = 1:size(obstacles, 2)
+        [x, y, z] = sphere(25);
+        x = x * obstacle_sizes(i) + obstacles(1, i);
+        y = y * obstacle_sizes(i) + obstacles(2, i);
+        z = z * obstacle_sizes(i) + obstacles(3, i);
 
-    surf(x, y, z, 'EdgeAlpha', 0);
-end
-
+        surf(x, y, z, 'EdgeAlpha', 0);
+    end
 
 %% Main
 
+% hold off;
 goal_reached = false;
 
 for i = 1:max_iterations_rrt
+    % boundaries for the generated random points
+    bounds = [0, 12; 0, 12; 0, 15];
+
     % generate random point
-    [random_point, chosen_goal] = generateRandomPoint(bounds_rrt, goal_frequency_rrt, goal);
+    random_point = generateRandomPoint(bounds, goal_frequency_rrt, goal);
 
     % Find the nearest point in tree_rrt to the random point
-    % if not(chosen_goal)
-    %     nearest_index = getNearestPointIndex(random_point, tree_rrt(:,1:3));
-    % else
-    %     nearest_index = 1;
-    % end
-
     nearest_index = getNearestPointIndex(random_point, tree_rrt(:,1:3));
     nearest_point = tree_rrt(nearest_index,1:3);
 
@@ -77,7 +114,7 @@ for i = 1:max_iterations_rrt
     for j = 1:size(obstacles, 2)
         if lineSegmentAndSphereCollision(segment_start', ...
                 segment_direction_normalized', segment_length, ...
-                obstacle_sizes(j) + safety_margins_RRT(j), obstacles(:,j))
+                obstacle_sizes(j) + safety_margins(j), obstacles(:,j))
             collided = true;
         end
     end
@@ -90,30 +127,22 @@ for i = 1:max_iterations_rrt
         % calculate the cost of the new point
         new_point_cost = nearest_point_cost + norm(new_point - nearest_point);
 
-        % calculate its distance from the goal
-        distance_from_goal = norm(goal - new_point);
-
-        % Add the new point to tree_rrt with its cost, parent node and
-        % distance from the goal
-        % tree_rrt = addNodeToTree(tree_rrt, new_point, new_point_cost, nearest_index, distance_from_goal);
-        tree_rrt = [tree_rrt; new_point, new_point_cost, nearest_index, distance_from_goal];
+        % Add the new point to tree_rrt with its cost and parent node
+        tree_rrt = [tree_rrt; new_point, new_point_cost, nearest_index];
 
         % optimize the tree using RRT*
-        if rrt_star_inclusion == 1
+        if rrt_star_inclusion
             tree_rrt = RRTStar(tree_rrt, size(tree_rrt, 1), ...
-                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
+                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins);
         end
 
         % Plot the new point and edge
         if animate_rrt
             if plot_nodes
-                plot3(new_point(1), new_point(2), new_point(3), strcat(tree_color, "o"));
+                plot3(new_point(1), new_point(2), new_point(3), 'bo');
             end
 
-            new_edge = plot3([nearest_point(1), new_point(1)], ...
-                [nearest_point(2), new_point(2)], ...
-                [nearest_point(3), new_point(3)], tree_color);
-
+            plot3([nearest_point(1), new_point(1)], [nearest_point(2), new_point(2)], [nearest_point(3), new_point(3)], 'b-');
             drawnow;
         end        
 
@@ -126,42 +155,59 @@ for i = 1:max_iterations_rrt
 end
 
 if goal_reached
-    disp("RRT Goal reached!");
-    
+    disp("Goal reached!");
+
     % plot the tree
     if not(animate_rrt)
         plotTree(tree_rrt, plot_nodes, tree_color);
     end
-  
+
     % find and plot the optimal path in the tree
     optimal_path = findOptimalPath(start, goal, tree_rrt, max_iterations_rrt);
-    
-    disp("optimal_path");
-    disp(optimal_path);
-    
-    size_of_optimal_path = size(optimal_path);
-
     plot3(optimal_path(:,1), optimal_path(:,2), optimal_path(:,3), "r-", "LineWidth", 5);
-  
 else
     disp("Goal not reached");
 end
 
-% get the time that took the program to run
-toc
-
 
 %% Functions
 
-function index = getNearestPointIndex(node, tree)
+function index = getNearestPointIndex(point, tree_rrt)
     % Find the index of the nearest point in tree_rrt to the given point
-    % disp(tree);
-    % disp(node);
-    
-    distances = vecnorm(tree - node, 2, 2);
+    distances = vecnorm(tree_rrt(:,1:3) - point, 2, 2);
     [~, index] = min(distances);
 end
 
+function collided = lineSegmentAndSphereCollision(segment_start, ...
+    segment_direction_normalized, segment_length, sphere_radius, ...
+    sphere_center)
+    % check if the given line segment and sphere is colliding
+
+    % see https://education.siggraph.org/static/HyperGraph/raytrace/rtinter1.htm
+    b = 2 * (segment_direction_normalized(1) * (segment_start(1) - sphere_center(1)) ...
+        + segment_direction_normalized(2) * (segment_start(2) - sphere_center(2)) ...
+        + segment_direction_normalized(3) * (segment_start(3) - sphere_center(3)));
+    c = (segment_start(1) - sphere_center(1))^2 + ...
+        (segment_start(2) - sphere_center(2))^2 + ...
+        (segment_start(3) - sphere_center(3))^2 - sphere_radius^2;
+
+    discriminant = b^2 - 4 * c;
+
+    % see if discriminant is negative or not
+    if discriminant < 0
+        collided = false;
+    else
+        t_0 = (-b + sqrt(discriminant)) / 2;
+        t_1 = (-b - sqrt(discriminant)) / 2;
+
+        % see if the line collided with the sphere on the line segment
+        if (0 <= t_0 && t_0 <= segment_length) || (0 <= t_1 && t_1 <= segment_length)
+            collided = true;
+        else
+            collided = false;
+        end
+    end
+end
 
 function [segment_start, segment_direction_normalized, segment_length] = getParametricRepresentationFromTwoPoints(point_1, point_2)
     % get the normalized direction vector, the starting point and the
@@ -176,41 +222,36 @@ function [segment_start, segment_direction_normalized, segment_length] = getPara
     end
 end
 
-function [random_point, chosen_goal] = generateRandomPoint(bounds_rrt, goal_frequency, goal)
+function random_point = generateRandomPoint(bounds, goal_frequency, goal)
     if rand() < goal_frequency
         % sometimes sample the goal
         random_point = goal;
-        chosen_goal = true;
     else
         % Generate a random point
-        random_point = zeros(1, size(bounds_rrt, 1));
-        chosen_goal = false;
+        random_point = [];
 
-        for i = 1:size(bounds_rrt, 1)
-            random_point(1,i) = rand() * (bounds_rrt(i,2) - bounds_rrt(i,1)) + bounds_rrt(i,1);
+        for i = 1:size(bounds, 1)
+            random_point = [random_point, rand() * (bounds(i,2) - bounds(i,1)) + bounds(i,1)];
         end
     end
-
-    % disp(random_point);
 end
 
 function optimal_path = findOptimalPath(start, goal, tree, max_iterations)
     % find the optimal path
-    current_point_index = getNearestPointIndex(goal, tree(:,1:3));
+    current_point_index = getNearestPointIndex(goal, tree);
     current_point = tree(current_point_index,1:3);
     optimal_path = [goal; current_point];
 
     for i = 1:max_iterations
         % connect to its parent node
         current_point_index = tree(current_point_index,5);
-
-        % break if we reach the start
-        if current_point_index == 0
-            break
-        end
-
         current_point = tree(current_point_index,1:3);
         optimal_path = [optimal_path; current_point];
+
+        % break if we reach the start
+        if current_point == start
+            break
+        end
     end
 end
 
@@ -237,7 +278,7 @@ function neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_dist
 end
 
 function optimized_tree = RRTStar(tree, node_index, max_distance, ...
-    obstacles, obstacle_sizes, safety_margins_RRT)
+    obstacles, obstacle_sizes, safety_margins)
     % optimizes tree using the RRT* algorithm
     neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_distance);
 
@@ -256,7 +297,7 @@ function optimized_tree = RRTStar(tree, node_index, max_distance, ...
             for j = 1:size(obstacles, 2)
                 if lineSegmentAndSphereCollision(segment_start, ...
                         segment_direction_normalized, segment_length, ...
-                        obstacle_sizes(j) + safety_margins_RRT(j), obstacles(:,j)')
+                        obstacle_sizes(j) + safety_margins(j), obstacles(:,j)')
                     collided = true;
                 end
             end
@@ -291,7 +332,7 @@ function optimized_tree = RRTStar(tree, node_index, max_distance, ...
 
                 if lineSegmentAndSphereCollision(segment_start, ...
                         segment_direction_normalized, segment_length, ...
-                        obstacle_sizes(j) + safety_margins_RRT(j), obstacles(:,j)')
+                        obstacle_sizes(j) + safety_margins(j), obstacles(:,j)')
                     collided = true;
                 end
             end
@@ -322,59 +363,6 @@ function plotTree(tree, plot_nodes, color)
     end
 end
 
-function new_tree = addNodeToTree(tree, node_position, cost, parent_index, distance_from_goal)
-    % appends a new node to tree
-    % this will append the new node depending on distance_from_goal
-    
-    % find where to insert the node
-    insertion_index = gerInsertionIndex(tree(:,6), distance_from_goal);
-
-    % combine the information together into a row vector
-    node = [node_position, cost, parent_index, distance_from_goal];
-
-    % add the node to the tree
-    new_tree = insertNode(tree, node, insertion_index);
-end
-
-function insertion_index = gerInsertionIndex(array, number)
-    % finds where to insert number into array
-    % array is assumed to be already sorted and nonempty
-    % this function uses divide and conquer
-
-    i = 1;
-    number_of_elements = numel(array);
-    j = number_of_elements;
-
-    while i ~= j
-        m = floor((i + j)/2);
-
-        if array(m) == number
-            i = m;
-            break;
-        elseif number > array(m)
-            i = m + 1;
-        else
-            j = m;
-        end
-    end
-
-    if number > array(number_of_elements)
-        insertion_index = number_of_elements + 1;
-    end
-
-    insertion_index = i;
-end
-
-function new_tree = insertNode(tree, node, insertion_index)
-    % inserts a node into a tree
-    if insertion_index ~= 1 && insertion_index <= size(tree, 1)
-        new_tree = [tree(1:insertion_index - 1,:); node; tree(insertion_index:end,:)];
-    elseif insertion_index == 1
-        new_tree = [node; tree];
-    else
-        new_tree = [tree; node];
-    end
-end
 
 %% Tests
 

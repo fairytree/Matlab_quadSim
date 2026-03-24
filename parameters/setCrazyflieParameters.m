@@ -54,11 +54,11 @@ nrotor_vehicle_layout_for_controller = layout_true + ...
     repmat( [x_offset;y_offset;0.000] , 1 , size(layout_true,2) );
 
 % Maximum and minimum thrust of propeller (Unit: newtons)
-thrust_min = 0.0;
+thrust_min = 0;
 thrust_max = 0.59;
 
-nrotor_vehicle_thrust_min = thrust_min / 4 * ones(size(layout_true,2), 1);
-nrotor_vehicle_thrust_max = thrust_max / 4 * ones(size(layout_true,2), 1);
+nrotor_vehicle_thrust_min = zeros(size(layout_true,2), 1);
+nrotor_vehicle_thrust_max = thrust_max * ones(size(layout_true,2), 1);
 
 
 %% Compute Equilibrium Thrust for each propeller of the vehicle
@@ -86,33 +86,18 @@ equilibrium_thrust = nrotor_vehicle_M \ ...
 
 pid_x_body_rate_kp = 250.0;
 pid_x_body_rate_ki = 500.0;
-pid_x_body_rate_kd = 2.5 * 0.1;
+pid_x_body_rate_kd = 2.5*0.1;
 pid_x_body_rate_integrator_limit = 33.3;
 
 pid_y_body_rate_kp = 250.0;
 pid_y_body_rate_ki = 500.0;
-pid_y_body_rate_kd = 2.5 * 0.1;
+pid_y_body_rate_kd =   2.5*0.1;
 pid_y_body_rate_integrator_limit = 33.3;
 
 pid_z_body_rate_kp = 120.0;
-pid_z_body_rate_ki = 16.7;
-pid_z_body_rate_kd = 0.0;
+pid_z_body_rate_ki =  16.7;
+pid_z_body_rate_kd =   0.0;
 pid_z_body_rate_integrator_limit = 167.7;
-
-% pid_x_body_rate_kp = 70.0;
-% pid_x_body_rate_ki = 0.001;
-% pid_x_body_rate_kd = 0.001;
-% pid_x_body_rate_integrator_limit = 33.3;
-% 
-% pid_y_body_rate_kp = 70.0;
-% pid_y_body_rate_ki = 0.001;
-% pid_y_body_rate_kd = 0.001;
-% pid_y_body_rate_integrator_limit = 33.3;
-% 
-% pid_z_body_rate_kp = 70.0;
-% pid_z_body_rate_ki = 16.7;
-% pid_z_body_rate_kd = 0.0;
-% pid_z_body_rate_integrator_limit = 167.7;
 
 % Specify the coefficients of the conversion from a uint16 binary command
 % to the propeller thrust in Newtons
@@ -122,23 +107,3 @@ cmd_2_newtons_conversion_linear_coefficient     =  6.4870e-6;
 % Specify that max and min for the uint16 binary command
 cmd_max = 2^16-1;
 cmd_min = 0;
-
-
-%% Set Frequency of Measurements and Controller
-% Sample time for the full state measurement
-sample_time_measurements_full_state = 1/200;
-% Sample time for on-board gyroscope measurement of body rates
-sample_time_measurements_body_rates = 1/500;
-% Sample time for on-board accelerometer measurement of body accelerations 
-sample_time_measurements_body_accelerations = 1/500;
-% Sample time for the inner loop controller (built in controller of crazyflie)
-sample_time_controller_inner = 1/500;
-% Sample time for continous
-sample_time_continous = 1/1000;
-
-
-%% Specify which noise signals noise to include
-measurement_noise_full_state_inclusion_multiplier = 0;
-measurement_noise_body_rates_inclusion_multiplier = 0; % TODO, make sure the noise generation block is correct in simulink
-measurement_noise_body_accelerations_inclusion_multiplier = 0; % TODO, make sure the noise generation block is correct in simulink
-

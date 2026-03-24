@@ -33,6 +33,7 @@ function [DSM_s, thrust_lyapunov_threshold] = thrustDSM( ...
     % self-proof linear constraint
     c_Tmin = K(1,1:9)';
     d_Tmin = -thrust_min + m * g + K(1,1:9) * v;
+    
     lyapunov_threshold_Tmin = lyapunovThreshold(v, d_Tmin, c_Tmin, P);
         
     c_Tmax = -K(1,1:9)';

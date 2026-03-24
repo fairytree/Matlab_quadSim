@@ -6,17 +6,14 @@ rrt_start_time = tic;
 %% RRT parameters
 
 % algorithm parameters
-bounds_rrt = [-1, 4;
-              -1, 4;
-              -1, 2.5]; % boundaries RRT can search in (each row is a upper & lower bound pair)
-% bounds_rrt = [-1, 5;
-%               -1, 5;
-%               -1, 3];
+bounds_rrt = [-1, 5;
+              -1, 5;
+              -1, 3]; % boundaries RRT can search in (each row is a upper & lower bound pair)
 rrt_search_time = 10; % in seconds
 optimize_after = true; % if true, the tree is optimized after done generating.
 % Otherwise, it is optimized at every iteration during the generation
 goal_frequency_rrt = 0.5;
-max_iterations_rrt = 2000;
+max_iterations_rrt = 1000;
 step_size_rrt = 0.1;
 threshold_rrt = 0.1;
 rrt_star_inclusion = true; % use RRT*, instead of regular RRT
@@ -152,13 +149,15 @@ if goal_reached
     end
 
     % find and plot the optimal path in the tree
-    path = findOptimalPath(goal, tree_rrt, max_iterations_rrt);
-    size_of_path = size(path, 1);    
+    optimal_path = findOptimalPath(goal, tree_rrt, max_iterations_rrt);
+    optimal_path = optimal_path(2:end, :); % !!! The end point is duplicate. 
+    size_of_optimal_path = size(optimal_path, 1);
 
     % get the time that took the program to run
     rrt_comp_time = toc(rrt_start_time);
+
     disp(strcat("Path found by RRT* in ", num2str(rrt_comp_time), " seconds:"));
-    disp(path);
+    disp(optimal_path);
     
     % plot the tree
     if not(animate_rrt) && rrt_plot
@@ -167,10 +166,10 @@ if goal_reached
 
     % plot path
     if animate_rrt || rrt_plot
-        plot3(path(:,1), path(:,2), path(:,3), "r-", LineWidth=5);
+        plot3(optimal_path(:,1), optimal_path(:,2), optimal_path(:,3), "r-", LineWidth=5);
     end
   
-    path = flip(path, 1); % store waypoints from start to goal
+    optimal_path_pathFG = flip(optimal_path, 1); % store waypoints from start to goal
 else
     disp("A path wasn't found within the maximum number of iterations or the maximum allocated time");
 

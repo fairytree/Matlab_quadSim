@@ -11,7 +11,6 @@ function plotGraphMultiN( ...
     u_max, ...
     x_max,...
     Margin, ...
-    iterations, ...
     N_idx, ...
     aux_ref_params, ...
     path, ...
@@ -32,7 +31,7 @@ function plotGraphMultiN( ...
     fig5_rows = 5;
     fig5_cols = 1;
     font = 'times';
-    font_size = 15;
+    font_size = 18;
     font_weight = 'normal';
     set(groot, ... "groot" stands for "graphics root"
         defaultAxesFontSize   = 1.0 * font_size, ...
@@ -58,7 +57,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 1);
     hold on;
-    legend('Position',[0.7 0.84 0.1 0.05], Box = 'off', Orientation='horizontal',  NumColumns=1, BackgroundAlpha = 0, FontWeight = font_weight, FontSize=0.9*font_size);
+    legend('Position',[0.76 0.835 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight, FontSize=0.9*font_size);
     % lgd.Orientation = 'horizontal';
     % convert s into a length
     length_from_start = zeros(1, numel(aux_ref_params.Data));
@@ -79,9 +78,8 @@ function plotGraphMultiN( ...
     end
     actual_path_length = getLengthFromStart(size(actual_path, 1), actual_path); % length of the path taken by p
     actual_path_percentage = 100 * actual_length_from_start / actual_path_length; % convert to percentage
-    % plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ (path margin{=}',num2str(Margin),')'));
-    % plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$'));
-    plot(MPC_x0.Time, actual_path_percentage, Color=color, LineWidth=line_width, DisplayName=strcat('actual (margin{=}',num2str(Margin),'m)'));
+    plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ ($Margin{=}',num2str(Margin),'$)'));
+    plot(MPC_x0.Time, actual_path_percentage, Color=color, LineWidth=line_width, DisplayName=strcat('actual ($Margin{=}',num2str(Margin),'$)'));
     
     % Position the right Y lable at a customized position
     if Margin < 10  % only draw once
@@ -103,76 +101,75 @@ function plotGraphMultiN( ...
     end
 
     xlim([0, sim_length]);
-    xlabel('Time [s]', FontWeight=font_weight, FontSize=font_size);
 
 
 
-    % % subfigure
-    % ax = subplot(fig5_rows, fig5_cols, 2);
-    % hold on;
-    % legend('Position', [0.58 0.71 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
-    % yscale log;
-    % set(gca, 'YScale', 'log');  % Convert to log
-    % yticks([1e-3 1e-2 1e-1 1]);
-    % yticklabels({'10^{-3}','10^{-2}','10^{-1}','10^{0}'});
-    % 
-    % if Margin > PathFG_max_N
-    %     plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('Ungoverned MPC ($Margin{=}',num2str(Margin),'$)'));
-    % else
-    %     plot(PathFG_time.Time, PathFG_time.Data + MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('PathFG+MPC ($Margin{=}',num2str(Margin),'$)'));
-    %     plot(PathFG_time.Time, PathFG_time.Data, Color=color, LineWidth=line_width, LineStyle=':', DisplayName=strcat('PathFG ($Margin{=}',num2str(Margin),'$)'));
-    % end
-    % % ylabel({'Compute', 'Time [s]'}, FontWeight=font_weight);
-    % ylabel('Compute Time [s]', FontWeight=font_weight);
-    % xlim([0, sim_length]);
-    % 
-    % 
-    % 
-    % % subfigure
-    % ax = subplot(fig5_rows, fig5_cols, 3);
-    % hold on;
-    % lgd = legend('Position', [0.65 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
-    % p_dot = sqrt(non_linear_full_states.Data(:, 4).^2 + non_linear_full_states.Data(:, 5).^2 + non_linear_full_states.Data(:, 6).^2);
-    % plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$Margin{=}',num2str(Margin),'$'));
-    % p_dot_max = sqrt(x_max(4)^2 + x_max(5)^2 + x_max(6)^2);
-    % lgd.AutoUpdate = 'off';
-    % yline(p_dot_max);
-    % lgd.AutoUpdate = 'on';
-    % ylabel('Speed [m/s]', FontWeight=font_weight);
-    % ytickformat('%.1f');
-    % xlim([0, sim_length]);
-    % ylim([0, p_dot_max]);
-    % 
-    % % subfigure
-    % ax = subplot(fig5_rows, fig5_cols, 4);
-    % hold on;
-    % lgd = legend('Position', [0.65 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
-    % ytickformat('%.1f');
-    % plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$Margin{=}',num2str(Margin),'$'));
-    % lgd.AutoUpdate = 'off';
-    % yline(u_max(1) + mass * g);
-    % yline(u_min(1) + mass * g);
-    % lgd.AutoUpdate = 'on';
-    % ylabel({'Total Thrust [N]'}, FontWeight=font_weight);
-    % xlim([0, sim_length]);
-    % 
-    % 
-    % % subfigure
-    % ax = subplot(fig5_rows, fig5_cols, 5);
-    % hold on;
-    % lgd = legend('Position', [0.65 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
-    % angular_speeds = sqrt(control_inputs.Data(2,:).^2 + control_inputs.Data(3,:).^2 + control_inputs.Data(4,:).^2);
-    % ytickformat('%.1f');
-    % plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$Margin{=}',num2str(Margin),'$'));
-    % lgd.AutoUpdate = 'off';
-    % u_upper = sqrt(u_max(2)^2 + u_max(3)^2 + u_max(4)^2);
-    % yline(u_upper);
-    % lgd.AutoUpdate = 'on';
-    % ylabel({'Angular'; 'Speed [rad/s]'}, FontWeight=font_weight);
-    % xlim([0, sim_length]);
-    % ylim([0, u_upper]);
-    % xlabel('Time [s]', FontWeight=font_weight);
-    % 
+    % subfigure
+    ax = subplot(fig5_rows, fig5_cols, 2);
+    hold on;
+    legend('Position', [0.58 0.71 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
+    yscale log;
+    set(gca, 'YScale', 'log');  % Convert to log
+    yticks([1e-3 1e-2 1e-1 1]);
+    yticklabels({'10^{-3}','10^{-2}','10^{-1}','10^{0}'});
+
+    if Margin > PathFG_max_N
+        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('Ungoverned MPC ($Margin{=}',num2str(Margin),'$)'));
+    else
+        plot(PathFG_time.Time, PathFG_time.Data + MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('PathFG+MPC ($Margin{=}',num2str(Margin),'$)'));
+        plot(PathFG_time.Time, PathFG_time.Data, Color=color, LineWidth=line_width, LineStyle=':', DisplayName=strcat('PathFG ($Margin{=}',num2str(Margin),'$)'));
+    end
+    % ylabel({'Compute', 'Time [s]'}, FontWeight=font_weight);
+    ylabel('Compute Time [s]', FontWeight=font_weight);
+    xlim([0, sim_length]);
+
+
+
+    % subfigure
+    ax = subplot(fig5_rows, fig5_cols, 3);
+    hold on;
+    lgd = legend('Position', [0.65 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
+    p_dot = sqrt(non_linear_full_states.Data(:, 4).^2 + non_linear_full_states.Data(:, 5).^2 + non_linear_full_states.Data(:, 6).^2);
+    plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$Margin{=}',num2str(Margin),'$'));
+    p_dot_max = sqrt(x_max(4)^2 + x_max(5)^2 + x_max(6)^2);
+    lgd.AutoUpdate = 'off';
+    yline(p_dot_max);
+    lgd.AutoUpdate = 'on';
+    ylabel('Speed [m/s]', FontWeight=font_weight);
+    ytickformat('%.1f');
+    xlim([0, sim_length]);
+    ylim([0, p_dot_max]);
+
+    % subfigure
+    ax = subplot(fig5_rows, fig5_cols, 4);
+    hold on;
+    lgd = legend('Position', [0.65 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
+    ytickformat('%.1f');
+    plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$Margin{=}',num2str(Margin),'$'));
+    lgd.AutoUpdate = 'off';
+    yline(u_max(1) + mass * g);
+    yline(u_min(1) + mass * g);
+    lgd.AutoUpdate = 'on';
+    ylabel({'Total Thrust [N]'}, FontWeight=font_weight);
+    xlim([0, sim_length]);
+
+
+    % subfigure
+    ax = subplot(fig5_rows, fig5_cols, 5);
+    hold on;
+    lgd = legend('Position', [0.65 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
+    angular_speeds = sqrt(control_inputs.Data(2,:).^2 + control_inputs.Data(3,:).^2 + control_inputs.Data(4,:).^2);
+    ytickformat('%.1f');
+    plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$Margin{=}',num2str(Margin),'$'));
+    lgd.AutoUpdate = 'off';
+    u_upper = sqrt(u_max(2)^2 + u_max(3)^2 + u_max(4)^2);
+    yline(u_upper);
+    lgd.AutoUpdate = 'on';
+    ylabel({'Angular'; 'Speed [rad/s]'}, FontWeight=font_weight);
+    xlim([0, sim_length]);
+    ylim([0, u_upper]);
+    xlabel('Time [s]', FontWeight=font_weight);
+    
 
 
     %%

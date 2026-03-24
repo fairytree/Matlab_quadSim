@@ -1,63 +1,104 @@
 
-%% TODO
-% 1.PID not good: the PID of inner controller can not compute a good solution to execute
-% the MPC command (Wx, Wy, Wz), resulting the nonlinear plant model produce
-% a state that deviates far away from MPC predicited state. MPC expects the
-% Wx, Wy, Wz command can be executed immediately and accurately, however,
-% it's not the case. To make things worse, the PID in the inner controller
-% sometimes produce a very large torque command that requires the 3 of
-% certain propeller to be negative, which is not allowed as the motor
-% cannot spin in oppositive direction. PID needs to be more conservative to
-% not create nagtive thrust command for a certain propoller, also,
-% thrust_min for MPC could be increase a little bit to save some negative
-% space for PID to use. Or, we can replace PID with LQR for easier tuning.
-% Now, all the saturation cap are removed, and the convertions from double
-% to UINT are removed as well, so that the error will be caught once the
-% cmd for a certain propeller becomes negative.  
-
-%%
 clear;
 close all;
 clc;
 
-disp("Simulation started")
+disp("Begin of Quadrotor Simulation")
 
-
-%% Add CasADi to Path
-%addpath(genpath("~/Code/CasADi"));
+%% Specify the start and goal
+start = [0.1; 0.1; 0.3];
+goal = [2.5; 2.5; 1.0]; % need to adjust bounds_rrt for different goal
+goal_threshold = 0.01;  % unit: meter
 
 
 %% Set Parameters (mass, structure...)
 setCrazyflieParameters;
 setNoiseParameters;
+init_flag = false; % To remove the initial computation spike caused by Simulink, preventing it from polluting the measured computation time. 
 
 
-%% Specify the start and goal
-start = [0.1; 0.1; 0.3];
-goal = [2.5; 2.5; 1];
-goal_threshold = 0.01; % unit: meter, goal reached when within the threshold
+%% choose Reference Source, Controller, State Estimator and Path Planning Algorithm
+ref_source_list = [2, 3]; % ERG = 1;  FG = 2 (FG3); pathFG = 3; sine wave signal = 4; step signal = 5;  (Be careful when change the index, MPC computes based on the ref source)
+controller = 2; % LQR = 1, MPC = 2; 
+path_planner = 2; % navigation field = 1; RRT* = 2; % Note!!! navigation field is not updated for the new plotting. 
+state_estimator = 3; % kalman filter = 1 (not working); observer = 2; non-linear true states = 3; built in Kalman Filter = 4; 
+DSM_inclusion = 1;
+pathFG_inclusion = 1;
+navigation_field_repulsion_inclusion = 1;
+rrt_star_inclusion = 1; % use RRT*
 
 
 %% Obstacles
 setObstacles;
 obstacles = obstacles';
 obstacle_sizes = obstacle_sizes';
-
-%% Path Planner
-safety_margin_universal = 0.02;
-safety_margin_universal_multiple = [0.1, 0.03, 0.005]; % [0.1, 0.03, 0.005] Comment out if not for compare multiple paths
-static_safety_margins = safety_margin_universal * ones(size(obstacle_sizes));
-safety_margins_RRT = static_safety_margins + agent_size;
-
-% valid strings: "RRT*", "Pot. Field"
-path_planners = ["RRT*"];
-% path_planners = ["Pot. Field"];
+safety_margin_universal = 0.03; % the same safety margin for all the obstacles, for collision check
 
 
-%% Inner Control Inclusion
+%% ERG parameters
+influence_margins =  0.2 * ones(size(obstacle_sizes)); 
+% NOTE!!!: when safety_margin_universal is very small (such as 0.01), static_saftey_margins
+% has to be much larger than safety_margin_universal (such as 3.4X) for FG3 or make the smoothing_radius 
+% really small around 0.01 (v_dot go at full speed of unit vector until reach the smoothing_radius
+% range), otherwise it cannot pass; however, PathFG only needs to be slightly bigger (such as 1.2X).
+static_saftey_margins = 1.0 * safety_margin_universal * ones(size(obstacle_sizes)); % static_saftey_margins has to be smaller than influence_margins
+circulation_gains = 0.1 * ones(size(obstacle_sizes)); 
 
-inner_controller_inclusion = 0; % ATTENTION: To plot appropriate result, switch the corresponding output("to workspace" block) in the plant of simulink
+smoothing_radius = 0.1; % unit: meter, if smoothing_radius is small, the agent goes at full speed until super close to obstacles
+step_size = 0.1;
+max_iterations = 10000;
+epsilon = 0.5; % epsilon is between 0 and 1
+k_P = 13; % paper uses 13
+k_D = 5; % paper uses 5
 
+
+%% FG parameters
+max_iter_FG_statics_check = 50; 
+kappa_FG = 1;
+kappa_floor_FG = 0.2;
+kappa_ceiling_FG = 1.0;
+lambda_FG = 0.8;
+delta_FG = 0.05;
+% NOTE!!! prediction_horizon_FG is M-N steps according to the original paper 
+prediction_horizon_FG = 0; % not in use, so that FG3 and PathFG have the same terminal set. 
+scaling_factor_traj_DSM_obstacle = 20; % scaling factor for Y boundaries (including states, control inputs and obstacle boundaries)
+scaling_factor_traj_DSM_x_bounds = 3;
+scaling_factor_traj_DSM_U_bounds = 3;
+
+
+%% pathFG parameters
+DSM_val_lower_threshold_pathFG = 0; % DSM_value target range lower bound
+DSM_val_upper_threshold_pathFG = 0.5; % DSM_value target range upper bound
+kappa_pathFG = 0.5;
+iter_max_pathFG = 10;
+PathFG_max_N = 30; % !!!PathFG is not included when prediction Horizon N >= 30
+
+
+%% RRT parameters
+tree_color = "b";
+safety_margins_RRT = static_saftey_margins + agent_size;
+goal_frequency_rrt = 0.5;
+max_distance_rrt_star = 1;
+animate_rrt = 0;
+max_iterations_rrt = 10000;
+step_size_rrt = 0.1;
+threshold_rrt = 0.1;
+tree_rrt = [start', 0, 0, norm(goal - start)];
+plot_nodes = false;
+% NOTE!!! the number of ref_reached_threshold_rrt needs to be carefully
+% tunned. If too big, the ref is switched to the next waypoint of RRT* before reaching
+% the prior waypoint, maybe result in invalid path (the ray connecting current
+% state and next waypoint collides with the obstacles) and thereby extremely small DSM_val
+% for the current state, and the agent gets stuck. On the other hand, if too small,
+% the v_dot is very small for many steps because it tried to get close
+% enough to the current reference waypoint, which may also in turn results
+% in agent getting stuck. 
+ref_reached_threshold_rrt = 0.03; 
+optimal_path = start'; % NOTE!!! The path for PathFG is from start to goal, while other governors use path that's from goal to start. 
+size_of_optimal_path = 1;
+if(path_planner == 2)
+    RRT2;
+end
 
 %% set the lower and upper bounds of X
 x_min = [-10; -10; -10; -1.0; -1.0; -1.0; -pi*0.2; -pi*0.2; -pi*0.2];
@@ -67,437 +108,38 @@ thrust_space_saved_for_PID_inner_controller = 0.0;
 u_min = [thrust_min - mass_true * g + thrust_space_saved_for_PID_inner_controller; -0.5*pi; -0.5*pi; -0.5*pi]; % [thrust-mg,roll_dot, pitch_dot, yaw_dot]
 u_max = [thrust_max - mass_true * g; 0.5*pi; 0.5*pi; 0.5*pi];
 
-
-%% pathFG parameters
-DSM_val_lower_threshold_pathFG = 0; % DSM_value target range lower bound
-DSM_val_upper_threshold_pathFG = 0.01; % DSM_value target range upper bound
-kappa_pathFG = 0.5;
-iter_max_pathFG = 50; 
-kappa_s = 2; % scaling factor for terminal thrust lyapunov threshold
-kappa_o = 5; % the original paper use 20, scaling factor for terminal obstacle lyapunov threshold
-PathFG_max_N = 30; % !!!PathFG is not included when prediction Horizon N >= 30
+%% Specify which noise signals noise to include
+measurement_noise_full_state_inclusion_multiplier = 0;
+measurement_noise_body_rates_inclusion_multiplier = 0; % TODO, make sure the noise generation block is correct in simulink
+measurement_noise_body_accelerations_inclusion_multiplier = 0; % TODO, make sure the noise generation block is correct in simulink
 
 
 %% Set Frequency of Measurements and Controller
-sample_time_controller_outer = 1/10; % Sample time for the outer loop controller
-sample_time_pathFG = sample_time_controller_outer; % Sample time for pathFG (path Feasibility Governor)
-sample_time_continous = 0.001;
-sample_time_kalman_filter = 0.001; % Sample time for kalman filter
+sample_time_measurements_full_state = 1/200;
+sample_time_measurements_body_rates = 1/500;
+sample_time_measurements_body_accelerations = 1/500;
+sample_time_controller_outer = 1/10;
+sample_time_controller_inner = 1/500;
+sample_time_kalman_filter = 1/1000;
+sample_time_FG = sample_time_controller_outer;
+sample_time_pathFG = sample_time_controller_outer;
+sample_time_continous = 1/1000;
 
 
 %% Linear model
-% Initial conditions for the full state (p, p_dot, angles, angular_rate)
-nrotor_initial_condition = [start; zeros(9, 1)];
+
+% Initial conditions for the full state
+nrotor_initial_condition = [...
+        start(1,1); start(2,1); start(3,1);...
+        0; 0; 0;...
+        0; 0; 0;...
+        0; 0; 0;...
+        ];
 
 alpha = 0; % equilibrium yaw angle
-m = mass_true;
 
 % full state continuous-time system (including outer loop and inner loop)
-A_continuous =...
-    [0,0,0,1,0,0,0,0,0,0,0,0;...
-     0,0,0,0,1,0,0,0,0,0,0,0;...
-     0,0,0,0,0,1,0,0,0,0,0,0;...
-     0,0,0,0,0,0,g * sin(alpha),g * cos(alpha),0,0,0,0;...
-     0,0,0,0,0,0,-g * cos(alpha),g * sin(alpha),0,0,0,0;...
-     0,0,0,0,0,0,0,0,0,0,0,0;...
-     0,0,0,0,0,0,0,0,0,1,0,0;...
-     0,0,0,0,0,0,0,0,0,0,1,0;...
-     0,0,0,0,0,0,0,0,0,0,0,1;...
-     0,0,0,0,0,0,0,0,0,0,0,0;...
-     0,0,0,0,0,0,0,0,0,0,0,0;...
-     0,0,0,0,0,0,0,0,0,0,0,0];
 
-B_continuous =...
-    [0,0,0,0;...
-     0,0,0,0;...
-     0,0,0,0;...
-     0,0,0,0;...
-     0,0,0,0;...
-     1/m,1/m,1/m,1/m;...
-     0,0,0,0;...
-     0,0,0,0;...
-     0,0,0,0;...
-     inertia_true_inverse*[layout_true(2,:);-layout_true(1,:);layout_true(3,:)]];
-
-C_inner_and_outer = eye(12);
-
-% outer loop continuous-time system
-G = [g*sin(alpha) , g*cos(alpha), 0;...
-     -g*cos(alpha), g*sin(alpha), 0;...
-     0            , 0           , 0];
-A_continuous_outer = [zeros(3, 3), eye(3)     , zeros(3, 3);...
-                      zeros(3, 3), zeros(3, 3), G          ;...
-                      zeros(3, 3), zeros(3, 3), zeros(3, 3)];
-B_continuous_outer = [zeros(5, 1), zeros(5, 3);...
-                      1/m        , zeros(1, 3);...
-                      zeros(3, 1), eye(3)     ];
-
-% Calculating different A/B matrices for different yaws
-% m = 2.57921;  % Gazebo x500 drone
-% for i = 0:11
-% 
-% alpha = i * pi / 6;
-% 
-% % outer loop continuous-time system
-% G = [g*sin(alpha) , g*cos(alpha), 0;...
-%      -g*cos(alpha), g*sin(alpha), 0;...
-%      0            , 0           , 0];
-% A_continuous_outer = [zeros(3, 3), eye(3)     , zeros(3, 3);...
-%                       zeros(3, 3), zeros(3, 3), G          ;...
-%                       zeros(3, 3), zeros(3, 3), zeros(3, 3)];
-% B_continuous_outer = [zeros(5, 1), zeros(5, 3);...
-%                       1/m        , zeros(1, 3);...
-%                       zeros(3, 1), eye(3)     ];
-% 
-% % format long;
-% [A_discrete_outer, B_discrete_outer] = c2d(A_continuous_outer, B_continuous_outer, sample_time_controller_outer);
-% disp(i);
-% % disp(A_discrete_outer(:,7:9));
-% % disp(B_discrete_outer(:,1:3));
-% disp(A_discrete_outer);
-% disp(B_discrete_outer);
-% 
-% end
-% assert(0)
-
-C_outer = eye(9);
-           
-D_outer = zeros(9,4);
-
-sys = ss(A_continuous_outer, B_continuous_outer, C_outer, D_outer);
-
-% Discretization
-% x[k+1] = A x[k] + B u[k] + Bw w[k]
-% y[k] = C x[k] + D u[k] + v[k]
-[A_discrete_outer, B_discrete_outer] = c2d(A_continuous_outer, B_continuous_outer, sample_time_controller_outer);
-[A_discrete_outer_kalman, B_discrete_outer_kalman] = c2d(A_continuous_outer, B_continuous_outer, sample_time_kalman_filter);
-
-
-%% Design MPC Controller
-prediction_horizons_MPC = [5];
-% prediction_horizons_MPC = [5, 15, 50];
-
-solver = 2; % read the NOTE in setMPCParameters file first
-
-MPC_max_iters = 200; % optimization parameter
-
-Q_MPC_diagonal = 5 * [2, 2, 2, 0.1, 0.1, 0.1, 0.5, 0.5, 0.5]; % 5 * [2, 2, 2, 1, 1, 1, 1, 1, 1];
-Q_MPC = diag(Q_MPC_diagonal);
-
-R_MPC_diagonal = 0.1 * ones(1, 4);
-R_MPC = diag(R_MPC_diagonal);
-
-
-%% Design LQR (Linear Quadratic Regulator) controller
-
-Q_LQR = Q_MPC;
-R_LQR = R_MPC;
-
-% % Continous LQR
-% K_lqr_outer_loop_continous_time = lqr(sys,Q_LQR,R_LQR);
-
-% Discrete LQR
-[K_lqr_outer_loop_discrete_time, P_matrix, ~] = dlqr(A_discrete_outer, B_discrete_outer, Q_LQR, R_LQR);
-K_lqr_outer_loop = K_lqr_outer_loop_discrete_time;
-
-disp(A_discrete_outer)
-disp(B_discrete_outer)
-disp(P_matrix)
-disp(K_lqr_outer_loop)
-disp(K_lqr_outer_loop * [3.163182, -1.722803, 1.239091, 0.000000, 0.000000, 0.000000, 1.814186, 0.000000, 0.000000]')
-disp((R_LQR + B_discrete_outer' * P_matrix * B_discrete_outer)^(-1) * B_discrete_outer' * P_matrix * A_discrete_outer)
-% assert(0)
-
-K = K_lqr_outer_loop;
-A = A_discrete_outer;
-B = B_discrete_outer;
-should_be_pos_def = -K' * R_LQR * K - Q_LQR + P_matrix - (A - B * K)' * P_matrix * (A - B * K);
-if all(eig(should_be_pos_def) > -1e-6)
-    disp('Matrix is positive semi-definite.');
-else
-    disp('Matrix is not positive semi-definite');
-    return;
-end
-
-
-%% Loop Over MPC Prediction Horizons
-
-simulation_length = 18;
-set_param('Sim_quadrotor', 'StopTime', num2str(simulation_length)); % simulation stop time
-animate_traj = true;
-set(groot, 'defaultFigureColor', [1, 1, 1])
-
-if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multiple)
-
-    % create figures
-    global fig1;
-    % format of Position: [left, bottom, width, height]
-    fig1 = figure(Position=[0, 0, 800, 2400], Name='DA FIGURE');
-
-    % loop over all the path planners
-    for path_planner_idx = 1:numel(path_planners)
-        path_planner = path_planners(path_planner_idx);
-        pathPlanner;
-        prediction_horizon_MPC = prediction_horizons_MPC(1);
-        setMPCParameters;
-        setStructs;
-
-        % Simulation
-        tStart = tic;
-        disp("Simulink simulation started");
-        clear ans;
-        sim("Sim_quadrotor.slx")
-        disp("Simulink simulation ended");
-        tEnd = toc(tStart);
-        disp("Total Simulation Time");
-        disp(tEnd);
-
-        if(solver == 5)
-            temp = squeeze(ans.artificial_reference.Data);  
-            artificial_reference_fixed = temp.';            
-            ans.reference_signal = timeseries(artificial_reference_fixed, ans.reference_signal.Time);
-        end
-
-        % plot graph
-        if isscalar(path_planners)
-            plotGraphSingleN( ...
-                ans.reference_signal, ...
-                ans.non_linear_full_states, ...
-                ans.pathFG_time, ...
-                ans.MPC_time, ...
-                ans.control_inputs, ...
-                colors, ...
-                goal, ...
-                prediction_horizon_MPC, ...
-                ans.aux_ref_params, ...
-                path, ...
-                ans.MPC_iterations, ...
-                inner_controller_inclusion, ...
-                mass_true, ...
-                g, ...
-                simulation_length, ...
-                u_min, ...
-                u_max, ...
-                x_min, ...
-                x_max);
-        else
-            plotGraphMultiPlanner( ...
-                ans.reference_signal, ...
-                ans.non_linear_full_states, ...
-                ans.pathFG_time, ...
-                ans.MPC_time, ...
-                ans.control_inputs, ...
-                colors(path_planner_idx), ...
-                goal, ...
-                u_min, ...
-                u_max, ...
-                prediction_horizon_MPC, ...
-                ans.MPC_iterations, ...
-                ans.aux_ref_params, ...
-                path, ...
-                path_planner, ...
-                mass_true, ...
-                g); 
-        end
-
-        if animate_traj
-            animateTrajectory(...
-                start,...
-                goal,...
-                obstacles,...
-                obstacle_sizes,...
-                ans.non_linear_full_states,...
-                ans.reference_signal,...
-                agent_size, ...
-                sample_time_continous,...
-                sample_time_pathFG);
-        end
-    end
-elseif isscalar(safety_margin_universal_multiple)
-
-    path_planner = path_planners(1);% use the first path planner if there is more than one present
-    pathPlanner;
-    prediction_horizon_MPC = prediction_horizons_MPC(1);
-    setMPCParameters;
-    setStructs;
-
-    global fig1;
-    % fig1 = figure(Position=[0, 0, 800, 2000], Name='DA FIGURE');
-    fig1 = figure('Position',[0, 0, 480, 800], 'Name','DA FIGURE');
-
-    for prediction_horizon_idx = 1:numel(prediction_horizons_MPC)
-        prediction_horizon_MPC = prediction_horizons_MPC(prediction_horizon_idx);
-
-        % Set MPC Parameters
-        setMPCParameters;
-        setStructs;
-
-        % Simulation
-        disp("Simulink simulation started");
-        clear ans;
-        sim("Sim_quadrotor.slx");
-        disp("Simulink simulation ended");
-
-        % Plot graphs
-        plotGraphMultiN( ...
-            ans.reference_signal, ...
-            ans.non_linear_full_states, ...
-            ans.pathFG_time, ...
-            ans.MPC_time, ...
-            ans.control_inputs, ...
-            colors(prediction_horizon_idx), ...
-            goal, ...
-            u_min, ...
-            u_max, ...
-            x_max,...
-            prediction_horizon_MPC, ...
-            ans.MPC_iterations, ...
-            prediction_horizon_idx, ...
-            ans.aux_ref_params, ...
-            path, ...
-            ans.MPC_x0, ...
-            mass_true, ...
-            g, ...
-            PathFG_max_N, ...
-            simulation_length);               
-    end
-else
-    global fig1;
-    fig1 = figure(Position=[0, 0, 800, 2000], Name='Multiple Paths FIGURE');
-    prediction_horizon_MPC = prediction_horizons_MPC(1);
-    path_planner = path_planners(1);% use the first path planner if there is more than one present
-
-    for idx = 1:numel(safety_margin_universal_multiple)
-        safety_margins_RRT = safety_margin_universal_multiple(idx) * ones(size(obstacle_sizes)) + agent_size;
-        pathPlanner;
-        prediction_horizon_MPC = prediction_horizons_MPC(1);
-        setMPCParameters;
-        setStructs;
-
-        setMPCParameters;
-        setStructs;
-
-        % Simulation
-        disp("Simulink simulation started");
-        clear ans;
-        sim("Sim_quadrotor.slx");
-        disp("Simulink simulation ended");
-
-        % Plot graphs
-        plotGraphMultiPath( ...
-            ans.reference_signal, ...
-            ans.non_linear_full_states, ...
-            ans.pathFG_time, ...
-            ans.MPC_time, ...
-            ans.control_inputs, ...
-            colors(idx), ...
-            goal, ...
-            u_min, ...
-            u_max, ...
-            x_max,...
-            safety_margin_universal_multiple(idx), ...
-            ans.MPC_iterations, ...
-            idx, ...
-            ans.aux_ref_params, ...
-            path, ...
-            ans.MPC_x0, ...
-            mass_true, ...
-            g, ...
-            PathFG_max_N, ...
-            simulation_length);      
-    end
-
-end
-
-
-%% Plot multiple 3D trajectories for comparison
-% global fig1;
-% fig1 = figure('Position',[0 0 1200 800],'Name','Multiple Paths FIGURE');
-% ax1 = axes(fig1);
-% hold(ax1,'on'); 
-% grid(ax1,'on'); 
-% axis(ax1,'equal');
-% xlim(ax1,[0 3]); ylim(ax1,[0 3]); zlim(ax1,[0 2]);
-% xlabel(ax1,'$x$ [m]', 'FontSize', 15); 
-% ylabel(ax1,'$y$ [m]', 'FontSize', 15);  
-% zlabel(ax1,'$z$ [m]', 'FontSize', 15); 
-% ax1.FontSize = 14;  % increases axis tick labels
-% view(ax1, -7.573304666576624,19.585200472715634);
-% % campos(ax1, [-1.412012197832373,-20.40253712848401,8.86123732595924]);
-% % view(-90,90);
-% 
-% prediction_horizon_MPC = prediction_horizons_MPC(1);
-% 
-% % ---------------- 1st Simulation ----------------
-% path_planner = path_planners(1); % or "Pot. Field"
-% pathPlanner;
-% solver = 2;
-% setMPCParameters;
-% setStructs;
-% clear ans;
-% sim("Sim_quadrotor.slx");
-% animateTrajectoryMultiSolver(...
-%     start, goal, obstacles, obstacle_sizes, ...
-%     ans.non_linear_full_states, ans.reference_signal.Data, ...
-%     agent_size, sample_time_continous, sample_time_pathFG, ...
-%     ax1, 'b', 'g', 'Actual Traj. (RRT*+PathFG+MPC)', 'Aux. Ref. (RRT*+PathFG+MPC)');  % 'b'=trajectory color, 'r'=reference color
-% 
-% 
-% % ---------------- 2rd Simulation ----------------
-% path_planner = "Pot. Field"; % or "Pot. Field"
-% pathPlanner;
-% solver = 2;
-% setMPCParameters;
-% setStructs;
-% clear ans;
-% sim("Sim_quadrotor.slx");
-% animateTrajectoryMultiSolver(...
-%     start, goal, obstacles, obstacle_sizes, ...
-%     ans.non_linear_full_states, ans.reference_signal.Data, ...
-%     agent_size, sample_time_continous, sample_time_pathFG, ...
-%     ax1, [0.5 0.5 0.5], [1.0, 0.8, 0.0], 'Actual Traj. (Pot.Field+PathFG+MPC)', 'Aux. Ref. (Pot.Field+PathFG+MPC)');  % 'g'=trajectory color, 'm'=reference color
-% 
-% 
-% % ---------------- 3rd Simulation ----------------
-% path_planner = "RRT*"; % or "Pot. Field"
-% pathPlanner;
-% solver = 5;
-% setMPCParameters;
-% setStructs;
-% clear ans;
-% sim("Sim_quadrotor.slx");
-% temp = squeeze(ans.artificial_reference.Data);  
-% artificial_reference_fixed = temp.';
-% animateTrajectoryMultiSolver(...
-%     start, goal, obstacles, obstacle_sizes, ...
-%     ans.non_linear_full_states, artificial_reference_fixed, ...
-%     agent_size, sample_time_continous, sample_time_pathFG, ...
-%     ax1, [0.776, 0.294, 0.549], 'm', 'Actual Traj. (MPCa)', 'Aux. Ref. (MPCa)');  % 'g'=trajectory color, 'm'=reference color
-% 
-% 
-% %% ---------------- Legend ----------------
-% % Only show one entry per trajectory type (reference/actual) for clarity
-% hLines = findobj(ax1, 'Type','line'); 
-% hLines = flip(hLines);  % now first plotted lines come first
-% [~, idx] = unique({hLines.DisplayName}, 'stable'); 
-% lgd = legend(ax1, hLines(idx), 'Position', [0.6 0.73 0.2 0.15]);  % top right
-% lgd.Box = 'off';  % removes the black box border
-% lgd.FontSize = 15;
-
-% %% Draw start and goal with legend
-% plot3(ax1, start(1), start(2), start(3), 'go', 'MarkerSize',10, 'DisplayName','Start');
-% plot3(ax1, goal(1), goal(2), goal(3), 'bo', 'MarkerSize',10, 'DisplayName','Goal');
-
-% exportgraphics(fig1, '3dTraj.pdf', 'ContentType', 'vector');
-exportgraphics(gcf, '3dTraj.png', 'Resolution', 600);  
-
-
-disp("Simulation ended");
-
-
-%% Appendix
-
-% full state continuous-time system (including outer loop and inner loop)
 % A_continouse_inner_and_outer = [0,0,0,1,0,0,0,0,0,0,0,0;...
 %      0,0,0,0,1,0,0,0,0,0,0,0;...
 %      0,0,0,0,0,1,0,0,0,0,0,0;...
@@ -534,20 +176,181 @@ disp("Simulation ended");
 %                       0,0,0,0,0,0,0,0,0,0,1,0;...
 %                       0,0,0,0,0,0,0,0,0,0,0,1];
 
+C_inner_and_outer = eye(12);
+
+% outer loop continuous-time system
+A_continuous_outer = [...
+                0,0,0,  1,0,0,  0,0,0   ;...
+                0,0,0,  0,1,0,  0,0,0   ;...
+                0,0,0,  0,0,1,  0,0,0   ;...
+                                      ...
+                0,0,0,  0,0,0,  g*sin(alpha),g*cos(alpha),0   ;...
+                0,0,0,  0,0,0,  -g*cos(alpha),g*sin(alpha),0   ;...
+                0,0,0,  0,0,0,  0,0,0   ;...
+                                         ...
+                0,0,0,  0,0,0,  0,0,0   ;...
+                0,0,0,  0,0,0,  0,0,0   ;...
+                0,0,0,  0,0,0,  0,0,0   ;...
+                ];
+
+B_continuous_outer = [...
+                0,0,0,0;...
+                0,0,0,0;...
+                0,0,0,0;...
+                0,0,0,0;...
+                0,0,0,0;...
+                1/mass_for_controller,0,0,0;...
+                0,1,0,0;...
+                0,0,1,0;...
+                0,0,0,1;...
+                ];
+
+% C_outer = [1,0,0,0,0,0,0,0,0;...
+%            0,1,0,0,0,0,0,0,0;...
+%            0,0,1,0,0,0,0,0,0;...
+%            0,0,0,0,0,0,1,0,0;...
+%            0,0,0,0,0,0,0,1,0;...
+%            0,0,0,0,0,0,0,0,1;...
+%            ];...
+
+C_outer = eye(9);
+           
+% D_outer = zeros(6,4);
+D_outer = zeros(9,4);
+
+sys = ss(A_continuous_outer,B_continuous_outer,C_outer,D_outer);
+
+% Discretization
+% x[k+1] = A x[k] + B u[k] + Bw w[k]
+% y[k] = C x[k] + D u[k] + v[k]
+[A_discrete_outer, B_discrete_outer] = c2d(A_continuous_outer, B_continuous_outer, sample_time_controller_outer);
+[A_discrete_outer_kalman, B_discrete_outer_kalman] = c2d(A_continuous_outer, B_continuous_outer, sample_time_kalman_filter);
 
 
-% %% Kalman Filter Design
-% % Covariances
-% % Rv = measurement_noise_full_state_covariance_matrix([1,2,3,7,8,9],[1,2,3,7,8,9]);
-% Rv = measurement_noise_full_state_covariance_matrix(1:9, 1:9);
-% disturbance_covariance = 0.001 * eye(9);
-% % test
-% % error: The block could not compute a convergent Kalman estimator for this
-% % plant model and covariance data. To remedy the problem:
-% % 1. Make sure that all unstable poles of A are observable through C (use MINREAL to check)
-% % 2. Modify the weights Q, R and N to make [G 0;H I]*[Q N;N' R]*[G 0;H I]' positive
-% % definite (use EIG to check).
-% disp("eigenvalues of [G 0;H I]*[Q N;N' R]*[G 0;H I]':");
-% matrix1 = [eye(9), zeros(9,6); zeros(6,9), eye(6,6)];
-% matrix2 = [zeros(9), zeros(9,6); zeros(6,9), Rv];
-% disp(eig(matrix1 * matrix2 * matrix1'));
+%% Observer Design (Not working)
+polevec_observer = 6 * [-100+3j,-100-3j,-120+2j,-120-2j,-110,-115,-140,-145,-150];
+L = (place(A_continuous_outer', C_outer', polevec_observer))';
+% obsv_continous = obsv(A_continouse_inner_and_outer, C_inner_and_outer);
+% rank_obsv_continous = rank(obsv_continous);
+% obsv_discrete = obsv(A_discrete_outer_kalman, C_outer);
+% rank_obsv_discrete = rank(obsv_discrete);
+
+
+%% Kalman Filter Design (Not working)
+% Covariances
+% Rv = measurement_noise_full_state_covariance_matrix([1,2,3,7,8,9],[1,2,3,7,8,9]);
+Rv = measurement_noise_full_state_covariance_matrix(1:9, 1:9);
+disturbance_covariance = 0.001 * eye(9);
+
+
+%% Design MPC Controller
+prediction_horizon_MPC = 5;
+MPC_max_iters = 50; % optimization parameter
+Q_MPC_diagonal = 5 * [2, 2, 2, 0.1, 0.1, 0.1, 0.5, 0.5, 0.5]; % 5 * [2, 2, 2, 1, 1, 1, 1, 1, 1];
+Q_MPC = diag(Q_MPC_diagonal);
+R_MPC_diagonal = 0.1 * ones(1, 4);
+R_MPC = diag(R_MPC_diagonal);
+
+
+%% Design LQR (Linear Quadratic Regulator) controller
+Q_LQR = Q_MPC;
+R_LQR = R_MPC;
+
+% Continous LQR
+K_lqr_outer_loop_continous_time = lqr(sys,Q_LQR,R_LQR);
+
+% Discrete LQR
+[K_lqr_outer_loop_discrete_time, LQR_P_matrix_full, ~] = dlqr(A_discrete_outer, B_discrete_outer, Q_LQR, R_LQR);
+K_lqr_outer_loop = K_lqr_outer_loop_discrete_time;
+
+setMPCParameters;
+setStructs;
+
+
+%% Start Simulation
+simulation_length = 30;
+set_param('Sim_quadrotor', 'StopTime', num2str(simulation_length)); % Set the simulation stop time for the model
+animate_traj = true;
+set(groot, 'defaultFigureColor', [1, 1, 1])
+
+simOut(numel(ref_source_list)) = Simulink.SimulationOutput;
+
+% plot
+global fig1;
+fig1 = figure(Position=[0, 0, 480, 2200], Name='DA FIGURE');
+
+for idx = 1:numel(ref_source_list)
+    ref_source = ref_source_list(idx);
+    disp("ref_source");
+    disp(ref_source);
+
+    if(ref_source == 3) % PathFG
+        kappa_s = 6; 
+        kappa_o = 20; 
+        kappa_omega = 6;
+    else
+        kappa_s = 100; % try 240, Note!!!  the original paper (invariant set distributed) use 6, scaling factor for terminal thrust lyapunov threshold
+        kappa_o = 200; % try 800 Note!!! the original paper use 20, scaling factor for terminal obstacle lyapunov threshold
+        kappa_omega = 100; % try 240 Note!!! the original paper doesn't have this term
+    end
+
+    setMPCParameters;
+    setStructs;
+
+    % Simulation
+    disp("Simulink simulation started");
+    simOut(idx) = sim("Sim_quadrotor.slx");
+    disp("Simulink simulation ended");
+              
+end
+
+% Plot graphs
+for idx = numel(ref_source_list):-1:1
+    ref_source = ref_source_list(idx);
+    if(ref_source == 2)
+        Ncycles = length(simOut(idx).governor_time.Data);
+        Nfast   = floor(length(simOut(idx).path_planner_time.Data) / Ncycles);
+        governer_total_time = ...
+            sum(reshape(simOut(idx).path_planner_time.Data(1:Nfast*Ncycles), Nfast, []),1).' + ...
+            sum(reshape(simOut(idx).DSM_time.Data(1:Nfast*Ncycles),          Nfast, []),1).' + ...
+            simOut(idx).governor_time.Data + ...
+            simOut(idx).dynamic_check_time.Data;
+    else
+        governer_total_time = simOut(idx).path_planner_time.Data + simOut(idx).DSM_time.Data;
+    end
+    
+    plotGraphMultiGovernor( ...
+        simOut(idx).reference_signal, ...
+        simOut(idx).non_linear_full_states, ...
+        governer_total_time, ...
+        simOut(idx).controller_time, ...
+        simOut(idx).control_inputs, ...
+        colors, ...
+        goal, ...
+        prediction_horizon_MPC, ...
+        simOut(idx).aux_ref_params, ...
+        optimal_path, ...
+        mass_true, ...
+        g, ...
+        simulation_length, ...
+        u_min, ...
+        u_max, ...
+        x_min, ...
+        x_max, ...
+        ref_source);   
+end
+
+
+%% Animate Trajectory
+% animateTrajectory(...
+%     start,...
+%     goal,...
+%     obstacles,...
+%     obstacle_sizes,...
+%     simOut(idx).non_linear_full_states,...
+%     simOut(idx).reference_signal,...
+%     agent_size, ...
+%     sample_time_continous,...
+%     sample_time_pathFG)
+
+disp("End of Quadrotor Simulation");

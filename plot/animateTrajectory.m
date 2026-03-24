@@ -14,12 +14,9 @@ function animateTrajectory(...
     display_time = false;
 
     set(groot, defaultTextInterpreter = 'latex')
-   
-    recordVideo = true;   % easy on/off switch
-
 
     %% downsample states
-    downsample_scalar_trajectory = 100;
+    downsample_scalar_trajectory = 500;
     time = downsample(non_linear_full_states.Time, downsample_scalar_trajectory);
     x = downsample(non_linear_full_states.Data(:, 1)', downsample_scalar_trajectory);
     y = downsample(non_linear_full_states.Data(:, 2)', downsample_scalar_trajectory);
@@ -32,13 +29,8 @@ function animateTrajectory(...
     %% downsample reference signal
     downsample_scalar_ref = downsample_scalar_trajectory * sample_time_continous / sample_time_pathFG;
     ref_x = downsample(reference_signal.Data(:, 1)', downsample_scalar_ref);
-    ref_y = downsample(reference_signal.Data(:, 2)', downsample_scalar_ref);
+    ref_y= downsample(reference_signal.Data(:, 2)', downsample_scalar_ref);
     ref_z = downsample(reference_signal.Data(:, 3)', downsample_scalar_ref);
-
-    % %% Resample reference to match state time grid
-    % ref_x = interp1(reference_signal.Time, reference_signal.Data(:,1), time, 'previous', 'extrap');
-    % ref_y = interp1(reference_signal.Time, reference_signal.Data(:,2), time, 'previous', 'extrap');
-    % ref_z = interp1(reference_signal.Time, reference_signal.Data(:,3), time, 'previous', 'extrap');
 
     
     %% Define vehicle design parameters
@@ -70,28 +62,16 @@ function animateTrajectory(...
     fig2 = figure('pos', [0 50 1200 800]);
     hg = gca;
     hg.Projection = "perspective";
-
-    %% Video recording setup
-    if recordVideo
-        myWriter = VideoWriter('animateTrajectory', 'Motion JPEG AVI');
-        myWriter.FrameRate = 30;
-        open(myWriter);
-    end
     
     %RRT 3D view
-    % view(-1.279217130069161e+02,19.285823935221515); 
-    % view(1.2427,0.28353)
-    % campos([-6.4099, -17.1034, 13.741])
-    view(-7.573304666576624,19.585200472715634);
-    % campos(ax1, [-1.412012197832373,-20.40253712848401,8.86123732595924]);
-    
+    view(-1.279217130069161e+02,19.285823935221515); 
+
     % % RRT 2D: view: -90,90; campos: comment this line
     % view(-90,90);
 
     % %Potential Field 3D: view: ; campos: -16.89939180776057,12.33975978038676,10.693399249387328
     % view(-1.205039062500000e+02,45.6044921875); 
     % campos([-16.89939180776057,12.33975978038676,10.693399249387328]);
-
 
     % % Potential Field 2D: view: -90,90; campos: comment this line
     % view(-90,90);
@@ -211,53 +191,20 @@ function animateTrajectory(...
         %movieVector(i) =  getframe(fig1);
         %delete(b);
         drawnow;
-
-        if recordVideo
-            frame = getframe(fig2);   % capture current figure
-            writeVideo(myWriter, frame);
-        end
-
-
         pause(pause_time);
     end
 
     exportgraphics(gcf, '3dTraj.pdf', ContentType='vector');
 
-    %% Post-simulation rotation (horizontal orbit)
-    if recordVideo
-        nFrames = 360;             % number of frames for full rotation
-        angleStep = 360 / nFrames; % degrees per frame
-        pauseTime = 0.03;          % controls rotation speed
-    
-        for k = 1:nFrames
-            camorbit(hg, angleStep, 0, 'data', [0 0 1]);  % rotate around Z-axis
-            drawnow limitrate;
-    
-            % Optional: record this rotation into video
-            if exist('myWriter','var') && isvalid(myWriter)
-                frame = getframe(fig2);
-                writeVideo(myWriter, frame);
-            end
-            pause(pauseTime);
-        end
-    end
-
-    if recordVideo
-        close(myWriter);
-    end
-
-
-% % optional: Save the movie
-% myWriter = VideoWriter('animateTrajectory', 'Motion JPEG AVI');
-% myWriter = VideoWriter('animateTrajectory1', 'MPEG-4');
-% myWriter.Quality = 100;
-% myWritter.FrameRate = 120;
-% 
-% % Open the VideoWriter object, write the movie, and class the file
-% open(myWriter);
-% writeVideo(myWriter, movieVector);
-% close(myWriter);
-
-
-
 end
+
+%  %% optional: Save the movie
+% %myWriter = VideoWriter('animateTrajectory', 'Motion JPEG AVI');
+% % myWriter = VideoWriter('animateTrajectory1', 'MPEG-4');
+% % myWriter.Quality = 100;
+% % myWritter.FrameRate = 120;
+% % 
+% % % Open the VideoWriter object, write the movie, and class the file
+% % open(myWriter);
+% % writeVideo(myWriter, movieVector);
+% % close(myWriter);

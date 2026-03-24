@@ -1,5 +1,5 @@
 % Plot single prediction horizon
-function plotGraphSingleN(reference_signal,...
+function plotGraphMultiGovernor(reference_signal,...
     non_linear_full_states,...
     governor_time_data, ...
     MPC_time, ...
@@ -18,6 +18,10 @@ function plotGraphSingleN(reference_signal,...
     x_max, ...
     ref_source)
 
+    if(ref_source == 1)
+        return;
+    end
+
     global fig1;
 
     fig_count = 1;
@@ -26,24 +30,24 @@ function plotGraphSingleN(reference_signal,...
     downsample_rate = 100;
     buffer = 0.01; % distance (as a percentage) between the top/bottom of the subfigure to the topmost/bottomost plot
 
-    %%
+    %%th
 
     figure(fig1);
     fig5_rows = 6;
     fig5_cols = 1;
     font = 'times'; % 'times' for Times New Roman and 'LM Roman 10' for Latin Modern Roman
-    font_size = 18;
+    font_size = 12;
     font_weight = 'normal'; % either 'bold' or 'normal'
     set(groot, ... "groot" stands for "graphics root"
         ...
-        defaultAxesFontSize   = 1 * font_size, ...
+        defaultAxesFontSize   = font_size, ...
         defaultAxesFontName   = font, ...
         defaultAxesFontWeight = font_weight, ...
         ...
         defaultLegendInterpreter     = 'latex', ...
         defaultLegendLocation        = 'best', ...
         defaultLegendBox             = 'off', ...
-        defaultLegendFontSize        = 1 * font_size, ... % the scaling not working
+        defaultLegendFontSize        = 1.0 * font_size, ... % the scaling not working
         defaultLegendFontWeight      = font_weight, ...
         defaultLegendBackgroundAlpha = 0, ...
         ...
@@ -54,6 +58,25 @@ function plotGraphSingleN(reference_signal,...
         defaultTextInterpreter = 'latex', ...
         defaultTextFontWeight  = font_weight ...
     )
+
+    % Line style based on reference source
+    switch ref_source
+        case 1
+            line_style = '--';   % dashed
+            line_width = 1.5;
+            show_legend = false;
+        case 2
+            line_style = ':';    % dotted
+            line_width = 1.5;
+            show_legend = true;
+        case 3
+            line_style = '-';    % solid
+            line_width = 2;
+            show_legend = true;
+        otherwise
+            line_style = '-.';   % dash-dot (fallback)
+    end
+
 
     ax = subplot(fig5_rows, fig5_cols, 1);
     hold on; legend;
@@ -81,13 +104,23 @@ function plotGraphSingleN(reference_signal,...
     yyaxis left;
     ax.YAxis(1).Color = 'black';
     ytickformat('%.2f');
-    legend('Position',[0.773 0.865 0.1 0.05], FontSize=font_size); 
+    lgd = legend('Position',[0.728 0.85 0.1 0.05], FontSize=font_size); 
+    lgd.ItemTokenSize = [9, 10];
     % plot(reference_signal.Time, error_norm, Color=colors(1), LineWidth=line_width, DisplayName=strcat('$\norm{x - \tilde x_s}$'));
    
-    plot(reference_signal.Time, error_norm, ...
+    h = plot(reference_signal.Time, error_norm, ...
     'Color', colors(1), ...
-    'LineWidth', line_width, ...
-    'DisplayName', '$\|x - \tilde{x}_s\|$');  % Or '\lVert x - \tilde{x}_s \rVert'
+    'LineStyle', line_style, ...
+    'LineWidth', line_width);  % Or '\lVert x - \tilde{x}_s \rVert'
+
+    if show_legend && ref_source == 2
+        h.DisplayName = '$\|x - \tilde{x}_s\|_{ERG}$'; % Or '\lVert x - \tilde{x}_s \rVert'
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$\|x - \tilde{x}_s\|_{PathFG}$'; % Or '\lVert x - \tilde{x}_s \rVert'
+    else
+        h.HandleVisibility = 'off';
+    end
+
 
     % Set LaTeX interpreter for the legend AFTER plotting
     legend('Interpreter', 'latex');
@@ -95,7 +128,7 @@ function plotGraphSingleN(reference_signal,...
 
     ylabel('Error', Color='black');
     cur_ylim = ylim; % current y-axis limits
-    ylim((1 + buffer) * cur_ylim);
+    ylim((1 + 7 * buffer) * cur_ylim);
     
     yyaxis right;
     ax.YAxis(2).Color = 'black';
@@ -121,18 +154,26 @@ function plotGraphSingleN(reference_signal,...
     ax.YAxis(2).Label.String = '';
     ax.YAxis(2).Label.Visible = 'off';
     % 2. THEN add a custom text label in exact position
-    right_label_x = 20; % Adjust 0.08 as needed
+    right_label_x = 28; % Adjust 0.08 as needed
     right_label_y = 50;
     text(right_label_x, right_label_y, ...
         'Path [\%]', ...
         'Rotation', 90, ...
         'VerticalAlignment', 'bottom', ...
         'HorizontalAlignment', 'center', ...
-        'FontSize', 1.0*font_size, ...
+        'FontSize', 1.0 * font_size, ...
         'Color', 'black', ...
         'Interpreter', 'latex');
 
-    plot(aux_ref_params.Time, path_percentage, Color=colors(2), LineWidth=line_width, DisplayName=strcat('$s$'));
+    h = plot(aux_ref_params.Time, path_percentage, Color=colors(2), LineStyle=line_style, LineWidth=line_width);
+    if show_legend && ref_source == 2
+        h.DisplayName = '$s_{ERG}$'; 
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$s_{PathFG}$';
+    else
+        h.HandleVisibility = 'off';
+    end
+    
     xlim([0, sim_length]);
     ylim([0, (1 + buffer) * 100]); % make the graph slightly higher so that the line is visible
 
@@ -140,23 +181,56 @@ function plotGraphSingleN(reference_signal,...
     hold on;
     p_dot_max = sqrt(x_max(4)^2 + x_max(5)^2 + x_max(6)^2);
     p_dot = sqrt(non_linear_full_states.Data(:,4).^2 + non_linear_full_states.Data(:,5).^2 + non_linear_full_states.Data(:,6).^2);
-    plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width);
+    h = plot(non_linear_full_states.Time, p_dot, Color=color,LineStyle=line_style, LineWidth=line_width);
     % yline(p_dot_max);
     ylabel({'Speed [m/s]'});
     ytickformat('%.2f');
     xlim([0, sim_length]);
+    lgd = legend('Position',[0.728 0.73 0.1 0.05], FontSize=font_size); 
+    lgd.ItemTokenSize = [12, 10];
+    if show_legend && ref_source == 2
+        h.DisplayName = '$speed_{ERG}$';
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$speed_{PathFG}$';
+    else
+        h.HandleVisibility = 'off';
+    end
 
     subplot(fig5_rows, fig5_cols, 3);
     hold on; 
-    lgd = legend('Position',[0.66 0.61 0.1 0.05], Orientation='horizontal', FontSize=1.05*font_size); % Location='northeast'
+    lgd = legend('Position',[0.58 0.6 0.1 0.05], Orientation='horizontal', NumColumns=3, FontSize=font_size); % Location='northeast'
+    lgd.ItemTokenSize = [12, 10];
     lgd.AutoUpdate = 'off';
     % yline(x_max(7));
     % yline(x_min(7));
     lgd.AutoUpdate = 'on';
     ytickformat('%.2f');
-    plot(non_linear_full_states.Time, non_linear_full_states.Data(:,7), Color=color, LineWidth=line_width, DisplayName='roll');
-    plot(non_linear_full_states.Time, non_linear_full_states.Data(:,8), Color=colors(2), LineWidth=line_width, DisplayName='pitch');
-    plot(non_linear_full_states.Time, non_linear_full_states.Data(:,9), Color=colors(3), LineWidth=line_width, DisplayName='yaw');
+    h = plot(non_linear_full_states.Time, non_linear_full_states.Data(:,7), Color=color, LineStyle=line_style, LineWidth=line_width);
+    if show_legend && ref_source == 2
+        h.DisplayName = '$roll_{ERG}$';
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$roll_{PathFG}$';  
+    else
+        h.HandleVisibility = 'off';
+    end
+    
+    h = plot(non_linear_full_states.Time, non_linear_full_states.Data(:,8), Color=colors(2), LineStyle=line_style, LineWidth=line_width);
+    if show_legend && ref_source == 2
+        h.DisplayName = '$pitch_{ERG}$';
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$pitch_{PathFG}$';  
+    else
+        h.HandleVisibility = 'off';
+    end
+    
+    h = plot(non_linear_full_states.Time, non_linear_full_states.Data(:,9), Color=colors(3), LineStyle=line_style, LineWidth=line_width);
+    if show_legend && ref_source == 2
+        h.DisplayName = '$yaw_{ERG}$';
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$yaw_{PathFG}$';  
+    else
+        h.HandleVisibility = 'off';
+    end
     ylabel({'Attitudes [rad]'});
     xlim([0, sim_length]);
 
@@ -172,30 +246,57 @@ function plotGraphSingleN(reference_signal,...
     disp("control_input.Time");
     disp(size(control_inputs.Time));
     disp("control_inputs.Data");
-    disp(size(control_inputs.Data));
+    disp(size(control_inputs.Data));  
     if(ref_source == 2)
-        plot(control_inputs.Time, control_inputs.Data(:,1) + mass * g, Color=color, LineWidth=line_width);
+        h = plot(control_inputs.Time, control_inputs.Data(:,1) + mass * g, Color=color, LineStyle=line_style, LineWidth=line_width);
     else
-        plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width);
-    
+        h = plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineStyle=line_style, LineWidth=line_width);
+    end
+    lgd = legend('Position',[0.6 0.45 0.1 0.05], Orientation='horizontal', NumColumns=3, FontSize=font_size); % Location='northeast'
+    lgd.ItemTokenSize = [12, 10];
+    if show_legend && ref_source == 2
+        h.DisplayName = '$thrust_{ERG}$';
+    elseif show_legend && ref_source == 3
+        h.DisplayName = '$thrust_{PathFG}$';
+    else
+        h.HandleVisibility = 'off';
     end
 
-    ylabel({'Total Thrust [N]'});
+    ylabel({'Total'; 'Thrust [N]'});
     xlim([0, sim_length]);
 
     subplot(fig5_rows, fig5_cols, 5);
     hold on; 
-    lgd = legend('Position',[0.68 0.325 0.1 0.05], Orientation='horizontal', FontSize=1.3*font_size); 
+    lgd = legend('Position',[0.55 0.3 0.1 0.05], Orientation='horizontal', NumColumns=3, FontSize=font_size); 
+    lgd.ItemTokenSize = [12, 10];
     ytickformat('%.2f');
      if(ref_source == 2)
-        plot(control_inputs.Time, control_inputs.Data(:, 2), Color=color, LineWidth=line_width, DisplayName='$\omega_x$');
-        plot(control_inputs.Time, control_inputs.Data(:, 3), Color=colors(2), LineWidth=line_width, DisplayName='$\omega_y$');
-        plot(control_inputs.Time, control_inputs.Data(:, 4), Color=colors(3), LineWidth=line_width, DisplayName='$\omega_z$');
+        h1 = plot(control_inputs.Time, control_inputs.Data(:, 2), Color=color, LineStyle=line_style, LineWidth=line_width);
+        h2 = plot(control_inputs.Time, control_inputs.Data(:, 3), Color=colors(2), LineStyle=line_style, LineWidth=line_width);
+        h3 = plot(control_inputs.Time, control_inputs.Data(:, 4), Color=colors(3), LineStyle=line_style, LineWidth=line_width);
+
+        if show_legend
+           h1.DisplayName = '${\omega_x}_{ERG}$';    
+           h2.DisplayName = '${\omega_y}_{ERG}$';
+           h3.DisplayName = '${\omega_z}_{ERG}$';
+        else 
+           h1.HandleVisibility = 'off';
+           h2.HandleVisibility = 'off';
+           h3.HandleVisibility = 'off';
+        end
      else
-        plot(control_inputs.Time, control_inputs.Data(2, :), Color=color, LineWidth=line_width, DisplayName='$\omega_x$');
-        plot(control_inputs.Time, control_inputs.Data(3, :), Color=colors(2), LineWidth=line_width, DisplayName='$\omega_y$');
-        plot(control_inputs.Time, control_inputs.Data(4, :), Color=colors(3), LineWidth=line_width, DisplayName='$\omega_z$');
-     
+        h1 = plot(control_inputs.Time, control_inputs.Data(2, :), Color=color, LineStyle=line_style, LineWidth=line_width);
+        h2 = plot(control_inputs.Time, control_inputs.Data(3, :), Color=colors(2), LineStyle=line_style, LineWidth=line_width);
+        h3 = plot(control_inputs.Time, control_inputs.Data(4, :), Color=colors(3), LineStyle=line_style, LineWidth=line_width);
+         if show_legend
+            h1.DisplayName = '${\omega_x}_{PathFG}$';    
+            h2.DisplayName = '${\omega_y}_{PathFG}$';
+            h3.DisplayName = '${\omega_z}_{PathFG}$';
+         else 
+            h1.HandleVisibility = 'off';
+            h2.HandleVisibility = 'off';
+            h3.HandleVisibility = 'off';
+         end
      end
 
     ylabel({'Angular'; 'Speed [rad/s]'});
@@ -207,7 +308,8 @@ function plotGraphSingleN(reference_signal,...
     % set(gca, 'YScale', 'log');  % Convert to log
     % yticks([1e-3 1e-2]);
     % yticklabels({'10^{-3}','10^{-2}'});
-    legend('Position',[0.38 0.116 0.1 0.05], FontSize=1*font_size); 
+    % legend('Position',[0.38 0.116 0.1 0.05], Orientation='horizontal',  FontSize=1*font_size); 
+    legend('Position',[0.68 0.17 0.1 0.05], FontSize=0.8*font_size, Orientation='horizontal', NumColumns=2); 
     disp("control_inputs.Time");
     disp(size(control_inputs.Time));
     disp("governor_time_data");
@@ -223,16 +325,27 @@ function plotGraphSingleN(reference_signal,...
     if(ref_source == 1)
         governor_type = "ERG";
     elseif(ref_source == 2)
-        governor_type = "Discrete ERG";
+        governor_type = "ERG";
     elseif(ref_source == 3)
         governor_type = "PathFG";
     else
         governor_type = "Unknown Governor";
     end
 
-    plot(control_inputs.Time, governor_time_data + MPC_time.Data, Color=colors(2), LineWidth=line_width,DisplayName=strcat(governor_type+'+MPC ($N{=}',num2str(N),'$)'));
-    plot(control_inputs.Time, governor_time_data, Color=color, LineWidth=line_width, DisplayName=strcat(governor_type+'($N{=}',num2str(N),'$)'));
-     
+    h = plot(control_inputs.Time, governor_time_data + MPC_time.Data, Color=colors(2), LineStyle=line_style, LineWidth=line_width);
+    if show_legend
+        % h.DisplayName = strcat(governor_type+'+MPC ($N{=}',num2str(N),'$)');
+        h.DisplayName = strcat(governor_type+'+MPC');
+    else
+        h.HandleVisibility = 'off';
+    end
+    
+    h = plot(control_inputs.Time, governor_time_data,  Color=color, LineStyle=line_style, LineWidth=line_width);
+    if show_legend
+        h.DisplayName = strcat(governor_type);
+    else
+        h.HandleVisibility = 'off';
+    end 
     ytickformat('%.3f');
     ylabel({'Compute Time [s]'});
     xlabel({'', 'Time [s]'})
@@ -243,7 +356,7 @@ function plotGraphSingleN(reference_signal,...
 
     % exportation
     for fig_idx = 1:fig_count
-        exportgraphics(figure(fig_idx), strcat('fig', num2str(fig_idx), '.pdf'), BackgroundColor='none', ContentType='vector');
+        exportgraphics(figure(fig_idx), strcat('plot', num2str(fig_idx), '.pdf'), BackgroundColor='none', ContentType='vector');
         % saveas(figure(fig_idx), strcat('fig', num2str(fig_idx), '.svg'))
         % saving as pdf doesn't support font embedding for non-standard fonts
     end

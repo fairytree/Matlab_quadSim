@@ -40,7 +40,7 @@ function [deci_vars,...
     x_bar_v = [v(1:3); 0; 0; 0; 0; 0; v(4)];
     [~, obstacle_V_bar] = obstacleDSM(obs_p, 0, x_bar_v, P, obs_size, agent_size, 1);
     [~, thrust_V_bar] = thrustDSM(thrust_max, thrust_min, m, g, 0, x_bar_v, K, P, 1);
-    [~, angular_rate_V_bar] = angularRateDSM(x_bar_v, 0, K, P, ub(size(ssmodel.A,1)+1:size(ssmodel.A,1)+size(ssmodel.B,2)), lb(size(ssmodel.A,1)+1:size(ssmodel.A,1)+size(ssmodel.B,2)));
+    [~, angular_rate_V_bar] = angularRateDSM(x_bar_v, 0, K, P, ub(size(ssmodel.A,1)+1:size(ssmodel.A,1)+size(ssmodel.B,2)), lb(size(ssmodel.A,1)+1:size(ssmodel.A,1)+size(ssmodel.B,2)), 1);
     V_bar = min([obstacle_V_bar, thrust_V_bar, angular_rate_V_bar]);
 
     % set initial guess
@@ -118,7 +118,6 @@ function [deci_vars,...
     % output
     desired_additional_thrust_and_body_rates = X_opt(10:13); 
     predicted_states_Nth_step = X_opt(end-8:end);
-
     deci_vars = X_opt(1:size(prior_deci_vars,1),1);
     iterations = fmincon_output.iterations;
 

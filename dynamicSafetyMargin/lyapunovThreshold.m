@@ -9,7 +9,7 @@ function gamma_value = lyapunovThreshold(v, d, c, P)
     % d: part of the constraint
     % c: part of the constraint
     % P: used for calculating Lyapunov value
-
+    
     gamma_value = (-c' * v + d)^2 / (c' * inv(P) * c);
 
 end

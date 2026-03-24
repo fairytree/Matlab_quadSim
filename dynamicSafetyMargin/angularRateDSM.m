@@ -1,5 +1,5 @@
 function [angular_rate_DSM, angular_rate_lyapunov_threshold] =...
-    angularRateDSM(x_bar_v, lyapunov_value, K, P, u_max, u_min)
+    angularRateDSM(x_bar_v, lyapunov_value, K, P, u_max, u_min, kappa_omega)
 
     % initalize Lyapunov thresholds
     omega_max_thresholds = zeros(3, 1);
@@ -28,6 +28,6 @@ function [angular_rate_DSM, angular_rate_lyapunov_threshold] =...
     angular_rate_lyapunov_threshold = min([omega_max_lyapunov_threshold, omega_min_lyapunov_threshold]);
 
     % compute the DSM
-    angular_rate_DSM = angular_rate_lyapunov_threshold - lyapunov_value;
+    angular_rate_DSM = kappa_omega * (angular_rate_lyapunov_threshold - lyapunov_value);
 
 end
