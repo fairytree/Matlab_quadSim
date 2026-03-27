@@ -2,7 +2,7 @@
 %% Generate obstacles
 
 % options: random positions = 1; Paraboloid trap = 2; 
-obstacle_type = 2; 
+obstacle_type = 1; 
 
 if (obstacle_type == 1)
     obstacles = [0.9, 1.3, 1.0;

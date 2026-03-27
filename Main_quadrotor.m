@@ -44,13 +44,13 @@ obstacles = obstacles';
 obstacle_sizes = obstacle_sizes';
 
 %% Path Planner
-safety_margin_universal = 0.02;
-safety_margin_universal_multiple = [0.1, 0.03, 0.005]; % [0.1, 0.03, 0.005] Comment out if not for compare multiple paths
+safety_margin_universal = 0.05;
+safety_margin_universal_multiple = [0.1]; % [0.1, 0.03, 0.005] Comment out if not for compare multiple paths
 static_safety_margins = safety_margin_universal * ones(size(obstacle_sizes));
 safety_margins_RRT = static_safety_margins + agent_size;
 
 % valid strings: "RRT*", "Pot. Field"
-path_planners = ["RRT*"];
+path_planners = ["RRT*","Pot. Field"];
 % path_planners = ["Pot. Field"];
 
 
@@ -224,7 +224,7 @@ end
 
 simulation_length = 18;
 set_param('Sim_quadrotor', 'StopTime', num2str(simulation_length)); % simulation stop time
-animate_traj = true;
+animate_traj = false;
 set(groot, 'defaultFigureColor', [1, 1, 1])
 
 if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multiple)
@@ -232,8 +232,9 @@ if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multipl
     % create figures
     global fig1;
     % format of Position: [left, bottom, width, height]
+    % fig1 = figure(Position=[0, 0, 800, 400], Name='DA FIGURE');
     fig1 = figure(Position=[0, 0, 800, 2400], Name='DA FIGURE');
-
+    
     % loop over all the path planners
     for path_planner_idx = 1:numel(path_planners)
         path_planner = path_planners(path_planner_idx);
@@ -294,6 +295,7 @@ if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multipl
                 prediction_horizon_MPC, ...
                 ans.MPC_iterations, ...
                 ans.aux_ref_params, ...
+                ans.MPC_x0, ...
                 path, ...
                 path_planner, ...
                 mass_true, ...
