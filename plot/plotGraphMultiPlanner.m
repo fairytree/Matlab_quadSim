@@ -3,7 +3,7 @@ function plotGraphMultiPlanner(reference_signal,...
     non_linear_full_states,...
     pathFG_time, ...
     MPC_time, ...
-    control_inputs, ...
+    ctrl_inputs, ...
     color,...
     goal, ...
     u_min, ...
@@ -106,7 +106,7 @@ function plotGraphMultiPlanner(reference_signal,...
     % if N_idx == 1
     %     yline(u_min(1), ':black', LineWidth=line_width, DisplayName='Constraints');
     % end
-    plot(control_inputs.Time, control_inputs.Data(1, :)+mass*g, Color=color, LineWidth=line_width, DisplayName=path_planner);
+    plot(ctrl_inputs.Time, ctrl_inputs.Data(1, :)+mass*g, Color=color, LineWidth=line_width, DisplayName=path_planner);
     lgd = legend;
     lgd.Location = 'northwest'; lgd.Orientation = 'horizontal';
     lgd.FontSize = 25; lgd.AutoUpdate = 'off'; lgd.FontWeight = 'bold';
@@ -121,8 +121,8 @@ function plotGraphMultiPlanner(reference_signal,...
     % lgd = legend;
     % lgd.Location = 'northwest'; lgd.Orientation = 'horizontal';
     % lgd.FontSize = 25; lgd.FontWeight = 'bold';
-    angular_speeds = sqrt(control_inputs.Data(2,:).^2 + control_inputs.Data(3,:).^2 + control_inputs.Data(4,:).^2);
-    plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width);
+    angular_speeds = sqrt(ctrl_inputs.Data(2,:).^2 + ctrl_inputs.Data(3,:).^2 + ctrl_inputs.Data(4,:).^2);
+    plot(ctrl_inputs.Time, angular_speeds, Color=color, LineWidth=line_width);
     ylabel('angular speed [rad/s]', FontWeight='bold');
     xlabel('Time [s]', FontWeight='bold');
 
@@ -131,7 +131,7 @@ function plotGraphMultiPlanner(reference_signal,...
     % ax.FontSize = 20;
     % % yline(u_max(2), ':black', LineWidth=line_width);
     % % yline(u_min(2), ':black', LineWidth=line_width);
-    % plot(control_inputs.Time, control_inputs.Data(2, :), Color=color, LineWidth=line_width);
+    % plot(ctrl_inputs.Time, ctrl_inputs.Data(2, :), Color=color, LineWidth=line_width);
     % ylabel('Wx [rad/s]', FontWeight='bold');
     % xlabel('Time [s]', FontWeight='bold');
     % 
@@ -140,7 +140,7 @@ function plotGraphMultiPlanner(reference_signal,...
     % ax.FontSize = 20;
     % % yline(u_max(3), ':black', LineWidth=line_width);
     % % yline(u_min(3), ':black', LineWidth=line_width);
-    % plot(control_inputs.Time, control_inputs.Data(3, :), Color=color, LineWidth=line_width);
+    % plot(ctrl_inputs.Time, ctrl_inputs.Data(3, :), Color=color, LineWidth=line_width);
     % ylabel('Wy [rad/s]', FontWeight='bold');
     % xlabel('Time [s]', FontWeight='bold');
     % 
@@ -149,7 +149,7 @@ function plotGraphMultiPlanner(reference_signal,...
     % ax.FontSize = 20;
     % % yline(u_max(4), ':black', LineWidth=line_width);
     % % yline(u_min(4), ':black', LineWidth=line_width);
-    % plot(control_inputs.Time, control_inputs.Data(4, :), Color=color, LineWidth=line_width);
+    % plot(ctrl_inputs.Time, ctrl_inputs.Data(4, :), Color=color, LineWidth=line_width);
     % ylabel('Wz [rad/s]', FontWeight='bold');
     % xlabel('Time [s]', FontWeight='bold');
 
