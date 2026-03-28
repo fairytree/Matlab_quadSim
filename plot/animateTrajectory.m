@@ -203,12 +203,34 @@ function animateTrajectory(...
                 plot3(ref_x(i), ref_y(i), ref_z(i), "ro", "MarkerSize", 20);
             end
         end
+        % box obstacle collision check for reference
+        if exist('rect_obs', 'var') && ~isempty(rect_obs)
+            ref_pt = [ref_x(i); ref_y(i); ref_z(i)];
+            for j = 1:size(rect_obs, 1)
+                box_min = rect_obs(j, 1:3)' - agent_size;
+                box_max = rect_obs(j, 4:6)' + agent_size;
+                if all(ref_pt >= box_min) && all(ref_pt <= box_max)
+                    plot3(ref_x(i), ref_y(i), ref_z(i), "ro", "MarkerSize", 20);
+                end
+            end
+        end
         
         % plot actual traj.
         h2 = plot3(x(last_i:i),y(last_i:i),z(last_i:i), 'b-','LineWidth',3, 'DisplayName', 'Actual Trajectory'); 
         for j = 1:size(obstacles, 2)
             if norm([x(i); y(i); z(i)] - obstacles(:,j)) <= agent_size + obstacle_sizes(j)
                 plot3(x(i), y(i), z(i), "ro", "MarkerSize", 20);
+            end
+        end
+        % box obstacle collision check for actual trajectory
+        if exist('rect_obs', 'var') && ~isempty(rect_obs)
+            traj_pt = [x(i); y(i); z(i)];
+            for j = 1:size(rect_obs, 1)
+                box_min = rect_obs(j, 1:3)' - agent_size;
+                box_max = rect_obs(j, 4:6)' + agent_size;
+                if all(traj_pt >= box_min) && all(traj_pt <= box_max)
+                    plot3(x(i), y(i), z(i), "ro", "MarkerSize", 20);
+                end
             end
         end
         legend([h1, h2],'Position', [0.65, 0.75, 0.2, 0.1]);
