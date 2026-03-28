@@ -6,9 +6,9 @@ rrt_start_time = tic;
 %% RRT parameters
 
 % algorithm parameters
-bounds_rrt = [-1, 4;
+bounds_rrt = [-1, 3.5;
               -1, 4;
-              -1, 2.5]; % boundaries RRT can search in (each row is a upper & lower bound pair)
+              -0.5, 2.5]; % boundaries RRT can search in (each row is a upper & lower bound pair)
 % bounds_rrt = [-1, 5;
 %               -1, 5;
 %               -1, 3];
@@ -16,7 +16,7 @@ rrt_search_time = 10; % in seconds
 optimize_after = true; % if true, the tree is optimized after done generating.
 % Otherwise, it is optimized at every iteration during the generation
 goal_frequency_rrt = 0.5;
-max_iterations_rrt = 2000;
+max_iterations_rrt = 5000;
 step_size_rrt = 0.1;
 threshold_rrt = 0.1;
 rrt_star_inclusion = true; % use RRT*, instead of regular RRT
@@ -31,6 +31,12 @@ rrt_plot = false; % plot the tree when done
 % internal parameters
 rng(0); % seed of the random number generator for reproducibility
 tree_rrt = [start', 0, 0, norm(goal - start)];
+
+% rectangular prism obstacle safety margin (applied uniformly to all faces)
+if ~exist('rect_obs', 'var') || isempty(rect_obs)
+    rect_obs = zeros(0, 6);
+end
+safety_margin_rect = safety_margin_universal + agent_size;
 
 
 %% Visualization
@@ -66,6 +72,26 @@ if animate_rrt || rrt_plot
     
         surf(x, y, z, 'EdgeAlpha', 0);
     end
+    
+    % plot rectangular prism obstacles
+    n_subdiv = 20;
+    for k = 1:size(rect_obs, 1)
+        x1 = rect_obs(k, 1); y1 = rect_obs(k, 2); z1 = rect_obs(k, 3);
+        x2 = rect_obs(k, 4); y2 = rect_obs(k, 5); z2 = rect_obs(k, 6);
+        z_vec = linspace(z1, z2, n_subdiv)';
+        % Bottom face
+        surf([x1 x2; x1 x2], [y1 y1; y2 y2], [z1 z1; z1 z1], 'EdgeAlpha', 0);
+        % Top face
+        surf([x1 x2; x1 x2], [y1 y1; y2 y2], [z2 z2; z2 z2], 'EdgeAlpha', 0);
+        % Front face (y = y1)
+        surf(repmat([x1 x2], n_subdiv, 1), repmat([y1 y1], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+        % Back face (y = y2)
+        surf(repmat([x1 x2], n_subdiv, 1), repmat([y2 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+        % Left face (x = x1)
+        surf(repmat([x1 x1], n_subdiv, 1), repmat([y1 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+        % Right face (x = x2)
+        surf(repmat([x2 x2], n_subdiv, 1), repmat([y1 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+    end
 end
 
 
@@ -95,7 +121,21 @@ for i = 1:max_iterations_rrt
             collided = true;
         end
     end
-
+ 
+    % check rectangular prism obstacles
+    if ~collided && exist('rect_obs', 'var') && ~isempty(rect_obs)
+        for j = 1:size(rect_obs, 1)
+            inflated_min = rect_obs(j, 1:3) - safety_margin_rect;
+            inflated_max = rect_obs(j, 4:6) + safety_margin_rect;
+            if lineSegmentAndBoxCollision(segment_start, ...
+                    segment_direction_normalized, segment_length, ...
+                    inflated_min, inflated_max)
+                collided = true;
+                break;
+            end
+        end
+    end
+    
     % add node to tree if it's not colliding with anything
     if not(collided)
         % the cost of the nearest point
@@ -114,7 +154,8 @@ for i = 1:max_iterations_rrt
         % optimize the tree during generation using RRT*
         if rrt_star_inclusion && not(optimize_after)
             tree_rrt = RRTStar(tree_rrt, size(tree_rrt, 1),...
-                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
+                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT, ...
+                rect_obs, safety_margin_rect);
         end
 
         % Plot the new point and edge
@@ -147,7 +188,8 @@ if goal_reached
     if rrt_star_inclusion && optimize_after
         for node_idx = 1:size(tree_rrt, 1)
             tree_rrt = RRTStar(tree_rrt, node_idx,...
-                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
+                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT, ...
+                rect_obs, safety_margin_rect);
         end
     end
 
@@ -266,7 +308,7 @@ function neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_dist
 end
 
 function optimized_tree = RRTStar(tree, node_index, max_distance, ...
-    obstacles, obstacle_sizes, safety_margins_RRT)
+    obstacles, obstacle_sizes, safety_margins_RRT, rect_obs, safety_margin_rect)
     % optimizes tree using the RRT* algorithm
     neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_distance);
 
@@ -289,7 +331,20 @@ function optimized_tree = RRTStar(tree, node_index, max_distance, ...
                     collided = true;
                 end
             end
-
+        % check rectangular prism obstacles
+        if ~collided && ~isempty(rect_obs)
+            for j = 1:size(rect_obs, 1)
+                inflated_min = rect_obs(j, 1:3) - safety_margin_rect;
+                inflated_max = rect_obs(j, 4:6) + safety_margin_rect;
+                if lineSegmentAndBoxCollision(segment_start, ...
+                        segment_direction_normalized, segment_length, ...
+                        inflated_min, inflated_max)
+                    collided = true;
+                    break;
+                end
+                end
+            end
+            
             if not(collided)
                 % change the parent node and cost of the neighboring index
                 tree(neighbor_indices(i),4) = new_cost;
@@ -324,7 +379,20 @@ function optimized_tree = RRTStar(tree, node_index, max_distance, ...
                     collided = true;
                 end
             end
-
+            % check rectangular prism obstacles
+            if ~collided && ~isempty(rect_obs)
+                for j = 1:size(rect_obs, 1)
+                    inflated_min = rect_obs(j, 1:3) - safety_margin_rect;
+                    inflated_max = rect_obs(j, 4:6) + safety_margin_rect;
+                    if lineSegmentAndBoxCollision(segment_start, ...
+                            segment_direction_normalized, segment_length, ...
+                            inflated_min, inflated_max)
+                        collided = true;
+                        break;
+                    end
+                end
+            end
+            
             if not(collided)
                 % change the parent node and cost of the neighboring index
                 tree(node_index,4) = new_cost;

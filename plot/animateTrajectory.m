@@ -4,6 +4,7 @@ function animateTrajectory(...
     goal,...
     obstacles,...
     obstacle_sizes,...
+    rect_obs,...
     non_linear_full_states,...
     reference_signal,...
     agent_size, ...
@@ -15,7 +16,7 @@ function animateTrajectory(...
 
     set(groot, defaultTextInterpreter = 'latex')
    
-    recordVideo = true;   % easy on/off switch
+    recordVideo = false;   % easy on/off switch
 
 
     %% downsample states
@@ -128,6 +129,28 @@ function animateTrajectory(...
         % surf(x_o_outer, y_o_outer, z_o_outer, "EdgeAlpha", 0, "FaceAlpha", 0.5); % transparent is very computational expensive
 
         hold on;
+    end
+
+    % Plot rectangular prism obstacles (rainbow-by-Z, same as spheres)
+    if exist('rect_obs', 'var') && ~isempty(rect_obs)
+        n_subdiv = 20;
+        for k = 1:size(rect_obs, 1)
+            x1 = rect_obs(k, 1); y1 = rect_obs(k, 2); z1 = rect_obs(k, 3);
+            x2 = rect_obs(k, 4); y2 = rect_obs(k, 5); z2 = rect_obs(k, 6);
+            z_vec = linspace(z1, z2, n_subdiv)';
+            % Bottom face
+            surf([x1 x2; x1 x2], [y1 y1; y2 y2], [z1 z1; z1 z1], 'EdgeAlpha', 0);
+            % Top face
+            surf([x1 x2; x1 x2], [y1 y1; y2 y2], [z2 z2; z2 z2], 'EdgeAlpha', 0);
+            % Front face (y = y1)
+            surf(repmat([x1 x2], n_subdiv, 1), repmat([y1 y1], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+            % Back face (y = y2)
+            surf(repmat([x1 x2], n_subdiv, 1), repmat([y2 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+            % Left face (x = x1)
+            surf(repmat([x1 x1], n_subdiv, 1), repmat([y1 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+            % Right face (x = x2)
+            surf(repmat([x2 x2], n_subdiv, 1), repmat([y1 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
+        end
     end
    
 

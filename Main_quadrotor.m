@@ -50,7 +50,7 @@ static_safety_margins = safety_margin_universal * ones(size(obstacle_sizes));
 safety_margins_RRT = static_safety_margins + agent_size;
 
 % valid strings: "RRT*", "Pot. Field"
-path_planners = ["RRT*","Pot. Field"];
+path_planners = ["RRT*"];
 % path_planners = ["Pot. Field"];
 
 
@@ -224,7 +224,7 @@ end
 
 simulation_length = 18;
 set_param('Sim_quadrotor', 'StopTime', num2str(simulation_length)); % simulation stop time
-animate_traj = false;
+animate_traj = true;
 set(groot, 'defaultFigureColor', [1, 1, 1])
 
 if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multiple)
@@ -308,6 +308,7 @@ if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multipl
                 goal,...
                 obstacles,...
                 obstacle_sizes,...
+                rect_obs,...
                 ans.non_linear_full_states,...
                 ans.reference_signal,...
                 agent_size, ...
