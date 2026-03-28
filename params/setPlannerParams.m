@@ -1,23 +1,17 @@
 %% RRT parameters
-% algorithm parameters
-bounds_rrt = [-1, 4;
-              -1, 4;
-              -1, 2.5]; % boundaries RRT can search in (each row is a upper & lower bound pair)
-% bounds_rrt = [-1, 5;
-%               -1, 5;
-%               -1, 3];
+
 rrt_search_time = 10; % in seconds
 optimize_after = true; % if true, the tree is optimized after done generating.
 % Otherwise, it is optimized at every iteration during the generation
-goal_frequency_rrt = 0.5;
+goal_bias = 0.2; % frequency of choosing the goal as random state
 max_iterations_rrt = 2000;
 step_size_rrt = 0.1;
 threshold_rrt = 0.1;
 rrt_star_inclusion = true; % use RRT*, instead of regular RRT
 max_distance_rrt_star = 1; % the distance within whcih RRT* will try to find the optimal rewiring
-% graphical parameters
+
+% plotting parameters
 tree_color = "b";
-animate_rrt = false; % plot the tree while running
 plot_nodes = false; % plot the nodes as circles
 rrt_plot = false; % plot the tree when done
 

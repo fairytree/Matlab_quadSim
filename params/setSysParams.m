@@ -12,5 +12,5 @@ controller_sample_time = 1/200;
 continous_sample_time = 1/1000;
 pathFG_sample_time = controller_sample_time;
 
-sim_length = 18;
-set_param('sim', 'StopTime', num2str(sim_length));
+sim_ = 18;
+set_param('sim', 'StopTime', num2str(sim_));

@@ -8,5 +8,5 @@
 %     ...
 % ]
 % in the case of a unicycle, it's 2D, so there's no z-coordinate
-rectangular_obs = [2, 0, 4, 4; 0, 1, 1, 2];
+rect_obs = [2, 0, 4, 4; 0, 1, 1, 2];
 buffer = 0.3;

@@ -1,6 +1,6 @@
 
 function collided = lineAndSphereCollision(segment_start, ...
-    segment_direction_normalized, segment_length, sphere_radius, ...
+    segment_direction_normalized, segment_len, sphere_radius, ...
     sphere_center)
     % check if the given line segment and sphere is colliding
 
@@ -22,7 +22,7 @@ function collided = lineAndSphereCollision(segment_start, ...
         t_1 = (-b - sqrt(discriminant)) / 2;
 
         % see if the line collided with the sphere on the line segment
-        if (0 <= t_0 && t_0 <= segment_length) || (0 <= t_1 && t_1 <= segment_length)
+        if (0 <= t_0 && t_0 <= segment_len) || (0 <= t_1 && t_1 <= segment_len)
             collided = true;
         else
             collided = false;

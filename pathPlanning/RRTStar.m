@@ -1,10 +1,11 @@
-% RRT (stop RRT* when time out)
+state_space = MyStateSpace('state_space', dim, [state_min, state_max]);
+state_validator = MyStateValidator(state_space);
+RRT_planner = plannerRRTStar(state_space, state_validator, GoalBias=goal_bias);
+rng(0);
+RRT_start_time = tic;
+path = plan(RRT_planner, start, goal);
 
-rrt_start_time = tic;
 
-% internal parameters
-rng(0); % seed of the random number generator for reproducibility
-tree_rrt = [start', 0, 0, norm(goal - start)];
 
 
 %% Visualization
@@ -43,88 +44,7 @@ if animate_rrt || rrt_plot
 end
 
 
-%% Main
-
-goal_reached = false;
-
-for i = 1:max_iterations_rrt
-    % generate random point
-    [random_point, ~] = generateRandomPoint(bounds_rrt, goal_frequency_rrt, goal);
-
-    % Find the nearest point in tree_rrt to the random point
-    nearest_idx = getNearestPointIndex(random_point, tree_rrt(:,1:3));
-    nearest_point = tree_rrt(nearest_idx,1:3);
-
-    % Move towards the random point by at most step_size_rrt
-    new_point = getNewPoint(random_point, nearest_point, step_size_rrt);
-
-    % check if whether or not the line segment has collided with an
-    % obstacle
-    [segment_start, segment_direction_normalized, segment_length] = getParametricRepresentationFromTwoPoints(nearest_point, new_point);
-    collided = false;
-    for j = 1:size(obstacles, 2)
-        if lineSegmentAndSphereCollision(segment_start', ...
-                segment_direction_normalized', segment_length, ...
-                obstacle_sizes(j) + safety_margins_RRT(j), obstacles(:,j))
-            collided = true;
-        end
-    end
-
-    % add node to tree if it's not colliding with anything
-    if not(collided)
-        % the cost of the nearest point
-        nearest_point_cost = tree_rrt(nearest_idx,4);
-
-        % calculate the cost of the new point
-        new_point_cost = nearest_point_cost + norm(new_point - nearest_point);
-
-        % calculate its distance from the goal
-        distance_from_goal = norm(goal - new_point);
-
-        % Add the new point to tree_rrt with its cost, parent node and
-        % distance from the goal
-        tree_rrt = [tree_rrt; new_point, new_point_cost, nearest_idx, distance_from_goal];
-
-        % optimize the tree during generation using RRT*
-        if rrt_star_inclusion && not(optimize_after)
-            tree_rrt = optimizeTree(tree_rrt, size(tree_rrt, 1),...
-                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
-        end
-
-        % Plot the new point and edge
-        if animate_rrt
-            if plot_nodes
-                plot3(new_point(1), new_point(2), new_point(3), strcat(tree_color, "o"));
-            end
-
-            new_edge = plot3([nearest_point(1), new_point(1)], ...
-                [nearest_point(2), new_point(2)], ...
-                [nearest_point(3), new_point(3)], tree_color);
-
-            drawnow;
-        end        
-
-        % check if the new point is close to the goal
-        if norm(new_point - goal') < threshold_rrt
-            goal_reached = true;
-        end
-        
-        % check if the time is up
-        if toc(rrt_start_time) >= rrt_search_time
-            break
-        end
-    end
-end
-
 if goal_reached
-    % optimize the tree using RRT*
-    if rrt_star_inclusion && optimize_after
-        for node_idx = 1:size(tree_rrt, 1)
-            tree_rrt = optimizeTree(tree_rrt, node_idx,...
-                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
-        end
-    end
-
     % find and plot the optimal path in the tree
     path = findOptimalPath(goal, tree_rrt, max_iterations_rrt);
     size_of_path = size(path, 1);    
@@ -144,7 +64,6 @@ if goal_reached
         plot3(path(:,1), path(:,2), path(:,3), "r-", LineWidth=5);
     end
   
-    path = flip(path, 1); % store waypoints from start to goal
 else
     disp("A path wasn't found within the maximum number of iterations or the maximum allocated time");
 
@@ -166,14 +85,14 @@ function index = getNearestPointIndex(node, tree)
 end
 
 
-function [segment_start, segment_direction_normalized, segment_length] = getParametricRepresentationFromTwoPoints(point_1, point_2)
+function [segment_start, segment_direction_normalized, segment_len] = getParametricRepresentationFromTwoPoints(point_1, point_2)
     % get the normalized direction vector, the starting point and the
     % length from the starting and ending point of a line segment
     segment_start = point_1;
     segment_direction = point_2 - point_1;
-    segment_length = norm(segment_direction);
-    if segment_length ~= 0
-        segment_direction_normalized = segment_direction / segment_length;
+    segment_len = norm(segment_direction);
+    if segment_len ~= 0
+        segment_direction_normalized = segment_direction / segment_len;
     else
         segment_direction_normalized = segment_direction;
     end
@@ -239,76 +158,6 @@ function neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_dist
     end
 end
 
-function optimized_tree = optimizeTree(tree, node_index, max_distance, ...
-    obstacles, obstacle_sizes, safety_margins_RRT)
-    % optimizes tree using the RRT* algorithm
-    neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_distance);
-
-    % decide whether or not to rewire neighbors to the new node
-    for i = 1:numel(neighbor_indices)
-        new_cost = norm(tree(neighbor_indices(i),1:3) ...
-                - tree(node_index,1:3)) + tree(node_index,4);
-
-        if tree(neighbor_indices(i),4) > new_cost
-            % check if the new connection is valid
-            [segment_start, segment_direction_normalized, segment_length] = ...
-                getParametricRepresentationFromTwoPoints( ...
-                tree(neighbor_indices(i),1:3), tree(node_index,1:3));
-            collided = false;
-
-            for j = 1:size(obstacles, 2)
-                if lineSegmentAndSphereCollision(segment_start, ...
-                        segment_direction_normalized, segment_length, ...
-                        obstacle_sizes(j) + safety_margins_RRT(j), obstacles(:,j)')
-                    collided = true;
-                end
-            end
-
-            if not(collided)
-                % change the parent node and cost of the neighboring index
-                tree(neighbor_indices(i),4) = new_cost;
-                tree(neighbor_indices(i),5) = node_index;
-            end
-        end
-    end
-
-    % decide which neighbor the new node should be rewired to (if any of
-    % them has a lower cost if wired to them than to the nearest node)
-    for i = 1:numel(neighbor_indices)
-        new_cost = norm(tree(neighbor_indices(i),1:3) ...
-                - tree(node_index,1:3)) + tree(neighbor_indices(i),4);
-
-        if tree(node_index,4) > new_cost
-            % check if the new connection is valid
-            [segment_start, segment_direction_normalized, segment_length] = ...
-                getParametricRepresentationFromTwoPoints( ...
-                tree(neighbor_indices(i),1:3), tree(node_index,1:3));
-            collided = false;
-
-            for j = 1:size(obstacles, 2)
-                % disp(segment_start);
-                % disp(segment_direction_normalized);
-                % disp(segment_length);
-                % disp(obstacle_sizes(j));
-                % disp(obstacles(:,j)');
-
-                if lineSegmentAndSphereCollision(segment_start, ...
-                        segment_direction_normalized, segment_length, ...
-                        obstacle_sizes(j) + safety_margins_RRT(j), obstacles(:,j)')
-                    collided = true;
-                end
-            end
-
-            if not(collided)
-                % change the parent node and cost of the neighboring index
-                tree(node_index,4) = new_cost;
-                tree(node_index,5) = neighbor_indices(i);
-            end
-        end
-    end
-
-    optimized_tree = tree;
-end
 
 function plotTree(tree, plot_nodes, color)
     % plots tree

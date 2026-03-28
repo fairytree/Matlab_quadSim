@@ -51,12 +51,12 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
     N = params.N;
     n_x = params.n_x;
     n_u = params.n_u;
-    rectangular_obs = params.rectangular_obs;
+    rect_obs = params.rect_obs;
     buffer = params.buffer;
     dim = params.dim;
     lyapunov_thresh = params.lyapunov_thresh;
 
-    n_o = size(rectangular_obs, 1);
+    n_o = size(rect_obs, 1);
     constr_count = N * n_o + 1;
     nonlin_constr = zeros(constr_count, 1);
     eq_constr_count = (N + 1) * n_o;
@@ -69,7 +69,7 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
         for j = 1:n_o % loop over obstacles
             max_dist = -Inf;
             for k = 1:dim % loop over dimensions
-                dist = max(rectangular_obs(j,k)-pos(k), pos(k)-rectangular_obs(j,k+dim));
+                dist = max(rect_obs(j,k)-pos(k), pos(k)-rect_obs(j,k+dim));
                 if dist > max_dist
                     max_dist = dist;
                 end
