@@ -1,6 +1,7 @@
-if path_planner == "RRT*"
-    % RRT; % stop when goal reached
-    RRT2;  % stop when time out
-elseif path_planner == "Pot. Field"
+switch path_planner
+case 1
+    state_space = nav.StateSpace('state_space', dim, [state_min, state_max]);
+    state_validator = nav.StateValidator(state_space);
+case 2
     potentialField;
 end

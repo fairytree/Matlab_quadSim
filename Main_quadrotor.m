@@ -9,7 +9,9 @@ setObstacles;
 setMPCParams;
 setPlannerParams;
 setPathfgParams;
-setStructs;
+computeAndPack;
+
+rrtFcn();
 
 global fig1;
 fig1 = figure(Position=[0, 0, 800, 2400]);

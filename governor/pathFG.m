@@ -1,108 +1,57 @@
-function [s, v] = pathFG(...    
-    mass_for_controller, ...
-    g, ...
-    u_max, ...
-    u_min, ...
-    kappa_s, ...
-    kappa_o, ...
-    obstacles, ...
-    obstacle_sizes, ...
-    agent_size, ...
-    K_lqr_outer_loop,...
-    P_matrix, ...
-    kappa_pathFG, ...
-    iter_max_pathFG, ...
-    DSM_val_lower_threshold_pathFG,...
-    DSM_val_upper_threshold_pathFG,...
-    path,...
-    size_of_optimal_path,...
-    prior_s,...
-    prior_predicted_states_Nth_step,...
-    prior_v)
+function [s, ref] = pathFG(prev_term_state, prev_s, prev_ref, params)
 
+    path = params.path;
+    path_size = params.path_size;
+    DSM_min = params.DSM_min;
+    DSM_max = params.DSM_max;
 
-    if prior_s == size_of_optimal_path % goal reached
-        v = prior_v;
-        s = prior_s;
+    if prev_s == path_size % goal reached
+        s = prev_s;
+        ref = prev_ref;
         return;
     end
 
-    lower_s = prior_s;
-    upper_s = size_of_optimal_path;
+    lower_s = prev_s;
+    upper_s = path_size;
     s = upper_s;
-    v = getVPosition(s, path);
-    DSM_val = terminalEnergyDSM(prior_predicted_states_Nth_step, ...
-                                    v, ...
-                                    mass_for_controller, ...
-                                    g, ...
-                                    u_max, ...
-                                    u_min, ...
-                                    kappa_s, ...
-                                    kappa_o, ...
-                                    obstacles, ...
-                                    obstacle_sizes, ...
-                                    agent_size, ...
-                                    K_lqr_outer_loop,...
-                                    P_matrix);
-  result = checkDSMFeasibility(DSM_val, DSM_val_lower_threshold_pathFG, DSM_val_upper_threshold_pathFG); 
-  iter = 0;
+    ref = getRefFromPath(s, path);
+    DSM = termEnergyDSM(prev_term_state, ref, params);
+    result = checkDSMFeasibility(DSM, DSM_min, DSM_max); 
+    if result == 1 || result == 0 % goal is feasible
+        return;
+    end
+    
+    % bisection method
+    iter = 0;
+    while result ~= 0 && iter < pathFG_max_iters
+        if result == -1 % DSM is negative
+            upper_s = s;
+            s = lower_s + pathFG_kappa * (upper_s - lower_s);
+            ref = getRefFromPath(s, path);
+        else
+            lower_s = s;
+            s = lower_s + pathFG_kappa * (upper_s - lower_s);
+            ref = getRefFromPath(s, path);
+        end
+        DSM = termEnergyDSM(prev_term_state, ref, params);
+        result = checkDSMFeasibility(DSM, DSM_min, DSM_max);
+        iter = iter + 1;
+    end
 
-  % check if the goal is feasible
-  if (result == 1)
-      v = reshape(v, [], 1);
-      return;
-  end
- 
-  while(result ~= 0 && iter < iter_max_pathFG)
+    if iter == pathFG_max_iters
+        ref = prev_ref;
+        disp("PathFG max iterations reached");
+    end
 
-      if(result == -1) % DSM is negative
-          upper_s = s;
-          s = lower_s + kappa_pathFG * (upper_s - lower_s);
-          v = getVPosition(s, path);
-      else   % (result == 1) DSM is a large positive number
-          lower_s = s;
-          s = lower_s + kappa_pathFG * (upper_s - lower_s);
-          v = getVPosition(s, path);
-      end
-
-      DSM_val = terminalEnergyDSM(prior_predicted_states_Nth_step, ...
-                                    v, ...
-                                    mass_for_controller, ...
-                                    g, ...
-                                    u_max, ...
-                                    u_min, ...                      
-                                    kappa_s, ...
-                                    kappa_o, ...
-                                    obstacles, ...
-                                    obstacle_sizes, ...
-                                    agent_size, ...
-                                    K_lqr_outer_loop,...
-                                    P_matrix);
-      result = checkDSMFeasibility(DSM_val, DSM_val_lower_threshold_pathFG, DSM_val_upper_threshold_pathFG);
-      iter = iter + 1;
-  end
-
-  % DSM_value doesn't reach target range within max iteration
-  if(iter == iter_max_pathFG)
-      v = prior_v;
-      disp("v_dot = 0");
-  end
-
-  % reshape into a column vector to ensure data integrity
-  v = reshape(v, [], 1);
-  
 end
 
-
-% Check if DSM_value is within the target range
-function result = checkDSMFeasibility(DSM_val, DSM_val_lower_threshold_pathFG, DSM_val_upper_threshold_pathFG)
-   
-    if(DSM_val < DSM_val_lower_threshold_pathFG)
+% check if the DSM is within the target range
+function result = checkDSMFeasibility(DSM, DSM_min, DSM_max)
+    if DSM < DSM_min
         result = -1;
-    elseif(DSM_val > DSM_val_upper_threshold_pathFG)
+    elseif DSM > DSM_max
         result = 1;
     else
         result = 0;
     end
-    
 end

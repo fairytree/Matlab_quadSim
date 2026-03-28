@@ -78,8 +78,7 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
         end
     end
     % terminal set constraint
-    term_state = deci_var(end-n_x+1:end);
-    nonlin_constr(end) = lyapunovValue(term_state, ref_state) - lyapunov_thresh;
+    term_state = TODO_USE_THE_FUNC;
 
     % initial condition
     nonlin_eq_constr(1:n_x) = deci_var(1:n_x) - curr_state;

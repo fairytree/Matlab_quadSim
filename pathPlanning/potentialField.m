@@ -1,16 +1,5 @@
-
 %% Potential Field
 tic
-
-
-%% Parameters
-max_iterations_potential_field = 10000;
-potential_field_step_size = 0.05;
-smoothing_radius = 1;
-influence_margins =  0.2 * ones(size(obstacle_sizes)); 
-static_safety_margins = 0.5 * influence_margins; % static_saftey_margins has to be smaller than influence_margins
-circulation_gains =  0.3 * static_safety_margins;
-
 
 %% Main
 

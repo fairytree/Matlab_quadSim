@@ -1,30 +1,16 @@
+% RRT (stop RRT* when time out)
 
-%% RRT (stop RRT when goal reached)
+rrt_start_time = tic;
 
-tic
-
-%% RRT parameters
-
+% internal parameters
 rng(0); % seed of the random number generator for reproducibility
-rrt_star_inclusion = 1; % use RRT*, instead of regular RRT
-tree_color = "b";
-goal_frequency_rrt = 0.5;
-max_distance_rrt_star = 1;
-animate_rrt = false;
-max_iterations_rrt = 10000;
-step_size_rrt = 0.05;
-threshold_rrt = 0.1;
 tree_rrt = [start', 0, 0, norm(goal - start)];
-plot_nodes = false;
-rrt_plot = false;
-bounds_rrt = [-1, 5; -1, 5; -1, 5];
-bounds_rrt = [0, 12; 0, 12; 0, 12];
 
 
 %% Visualization
 
 if animate_rrt || rrt_plot
-    % Create figure for visualization
+    % create figure for visualization
     fig = figure('Position', [0 50 1200 800]);
     hg = gca;
     hg.Projection = "perspective";
@@ -41,11 +27,11 @@ if animate_rrt || rrt_plot
     ylabel('y');
     zlabel('z');
     
-    % Plot start and goal points
+    % plot start and goal points
     plot3(start(1), start(2), start(3), 'go', 'MarkerSize', 10);
     plot3(goal(1), goal(2), goal(3), 'ro', 'MarkerSize', 10);
     
-    % Plot obstacles with their respective sizes
+    % plot obstacles with their respective sizes
     for i = 1:size(obstacles, 2)
         [x, y, z] = sphere(25);
         x = x * obstacle_sizes(i) + obstacles(1, i);
@@ -66,15 +52,7 @@ for i = 1:max_iterations_rrt
     [random_point, ~] = generateRandomPoint(bounds_rrt, goal_frequency_rrt, goal);
 
     % Find the nearest point in tree_rrt to the random point
-    % if not(chosen_goal)
-    %     nearest_idx = getNearestPointIndex(random_point, tree_rrt(:,1:3));
-    % else
-    %     nearest_idx = 1;
-    % end
-
     nearest_idx = getNearestPointIndex(random_point, tree_rrt(:,1:3));
-    % disp(size(tree_rrt));
-    % disp(nearest_idx);
     nearest_point = tree_rrt(nearest_idx,1:3);
 
     % Move towards the random point by at most step_size_rrt
@@ -105,12 +83,11 @@ for i = 1:max_iterations_rrt
 
         % Add the new point to tree_rrt with its cost, parent node and
         % distance from the goal
-        % tree_rrt = addNodeToTree(tree_rrt, new_point, new_point_cost, nearest_idx, distance_from_goal);
         tree_rrt = [tree_rrt; new_point, new_point_cost, nearest_idx, distance_from_goal];
 
-        % optimize the tree using RRT*
-        if rrt_star_inclusion == 1
-            tree_rrt = RRTStar(tree_rrt, size(tree_rrt, 1), ...
+        % optimize the tree during generation using RRT*
+        if rrt_star_inclusion && not(optimize_after)
+            tree_rrt = optimizeTree(tree_rrt, size(tree_rrt, 1),...
                 max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
         end
 
@@ -127,51 +104,63 @@ for i = 1:max_iterations_rrt
             drawnow;
         end        
 
-        % Check if the new point is close to the goal
+        % check if the new point is close to the goal
         if norm(new_point - goal') < threshold_rrt
             goal_reached = true;
-            break;
+        end
+        
+        % check if the time is up
+        if toc(rrt_start_time) >= rrt_search_time
+            break
         end
     end
 end
 
 if goal_reached
-    disp("RRT Goal reached!");
+    % optimize the tree using RRT*
+    if rrt_star_inclusion && optimize_after
+        for node_idx = 1:size(tree_rrt, 1)
+            tree_rrt = optimizeTree(tree_rrt, node_idx,...
+                max_distance_rrt_star, obstacles, obstacle_sizes, safety_margins_RRT);
+        end
+    end
+
+    % find and plot the optimal path in the tree
+    path = findOptimalPath(goal, tree_rrt, max_iterations_rrt);
+    size_of_path = size(path, 1);    
+
+    % get the time that took the program to run
+    rrt_comp_time = toc(rrt_start_time);
+    disp(strcat("Path found by RRT* in ", num2str(rrt_comp_time), " seconds:"));
+    disp(path);
     
     % plot the tree
     if not(animate_rrt) && rrt_plot
         plotTree(tree_rrt, plot_nodes, tree_color);
     end
-  
-    % find and plot the optimal path in the tree
-    path = findOptimalPath(start, goal, tree_rrt, max_iterations_rrt);
-    
-    disp("path");
-    disp(path);
-    
-    size_of_path = size(path, 1);
 
     % plot path
     if animate_rrt || rrt_plot
-        plot3(path(:,1), path(:,2), path(:,3), "r-", "LineWidth", 5);
+        plot3(path(:,1), path(:,2), path(:,3), "r-", LineWidth=5);
     end
   
     path = flip(path, 1); % store waypoints from start to goal
 else
-    disp("Goal not reached");
-end
+    disp("A path wasn't found within the maximum number of iterations or the maximum allocated time");
 
-% get the time that took the program to run
-toc
+    % plot the tree
+    if not(animate_rrt) && rrt_plot
+        plotTree(tree_rrt, plot_nodes, tree_color);
+    end
+
+    assert(1 + 1 == 3);
+end
 
 
 %% Functions
 
 function index = getNearestPointIndex(node, tree)
-    % Find the index of the nearest point in tree_rrt to the given point
-    % disp(tree);
-    % disp(node);
-    
+    % Find the index of the nearest point in tree_rrt to the given point    
     distances = vecnorm(tree - node, 2, 2);
     [~, index] = min(distances);
 end
@@ -208,7 +197,7 @@ function [random_point, chosen_goal] = generateRandomPoint(bounds_rrt, goal_freq
     % disp(random_point);
 end
 
-function path = findOptimalPath(start, goal, tree, max_iterations)
+function path = findOptimalPath(goal, tree, max_iterations)
     % find the optimal path
     current_point_index = getNearestPointIndex(goal', tree(:,1:3));
     current_point = tree(current_point_index,1:3);
@@ -250,7 +239,7 @@ function neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_dist
     end
 end
 
-function optimized_tree = RRTStar(tree, node_index, max_distance, ...
+function optimized_tree = optimizeTree(tree, node_index, max_distance, ...
     obstacles, obstacle_sizes, safety_margins_RRT)
     % optimizes tree using the RRT* algorithm
     neighbor_indices = getNeighboringNodeIndices(tree, node_index, max_distance);

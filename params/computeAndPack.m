@@ -1,0 +1,39 @@
+% compute parameters and pack them into a single structure
+% sorting the parameters into a hiearchy will have to wait until next time
+params = struct(...
+    'rectangular_obs', rectangular_obs,...
+    'safety_margin', safety_margin,...
+    'N', N,...
+    'dim', dim,... 
+    'n_x', n_x,...
+    'n_u', n_u,...
+    'k', k,...
+    'q', q,...
+    'input_max', input_max,...
+    'max_iters', max_iters,...
+    'colors', colors...
+);
+params.deci_var_length = N * (n_x + n_u) + n_x;
+params.quad_cost_mat = getQuadCostMat(params);
+[params.lower_bound, params.upper_bound] = getDeciVarBounds(params);
+
+function [lower_bound, upper_bound] = getDeciVarBounds(params)
+    N = params.N;
+    state_min = params.state_min;
+    input_min = params.input_min;
+    state_max = params.state_max;
+    input_max = params.input_max;
+    lower_bound = [repmat([state_min;input_min],N,1); state_min];
+    upper_bound = [repmat([state_max;input_max],N,1); state_max];
+end
+
+% the matrix in the quadractic term of the cost function
+function quad_cost_mat = getQuadCostMat(params)
+    n_x = params.n_x;
+    n_u = params.n_u;
+    N = params.N;
+    q = params.q;
+    stage_diag = [q*ones(n_x,1); zeros(n_u,1)];
+    quad_cost_mat_diag = [repmat(stage_diag,N,1); ones(n_x,1)];
+    quad_cost_mat = diag(quad_cost_mat_diag);
+end
