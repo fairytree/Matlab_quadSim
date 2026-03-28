@@ -3,7 +3,7 @@ goal = [4; 7];
 init_state = start;
 
 state_min = [-Inf; -Inf];
-state_max = -x_min;
+state_max = -state_min;
 
 input_min = [-2*pi; 0];
 input_max = [2*pi; 0.3];

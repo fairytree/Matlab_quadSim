@@ -1,6 +1,6 @@
 switch path_planner
 case 1
-    RRTStar;
+    RRT2;
 case 2
     potentialField;
 end

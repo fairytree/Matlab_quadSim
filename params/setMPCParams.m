@@ -26,3 +26,11 @@ R_MPC = diag(R_MPC_diagonal);
 
 Q_LQR = Q_MPC;
 R_LQR = R_MPC;
+
+dark_blue = [0 0.4470 0.7410];
+colors = ["#0072BD",... % blue
+        "#ffA500",...   % orange
+        "#77AC30",...   % green
+        "#D95319",...   % red
+        "#4DBEEE",...   % light blue
+        'black'];
