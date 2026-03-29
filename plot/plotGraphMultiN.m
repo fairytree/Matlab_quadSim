@@ -1,42 +1,24 @@
 % Plot multiple prediction horizons — 2D Unicycle version
-% Adapted from the quadrotor plotGraphMultiN.m, same visual format.
-%
 % Called once per N value.  Each call overlays one more set of curves
 % onto the persistent figure fig1.
-%
-% INPUTS  (all Simulink timeseries from "To Workspace" blocks)
-%   states_ts         timeseries   actual system states     [T × n_x]
-%   ctrl_inputs_ts    timeseries   MPC control inputs       [T × n_u]
-%   MPC_time_ts       timeseries   MPC solve time           [T × 1]
-%   pfg_time_ts       timeseries   PathFG solve time        [T × 1]
-%   reference_sig_ts  timeseries   PathFG auxiliary ref     [T × n_x]
-%   color             color spec   line colour for this run
-%   N                 scalar       prediction horizon
-%   path              [W × 2]     RRT* waypoints
-%   u_min             [n_u × 1]   input lower bounds
-%   u_max             [n_u × 1]   input upper bounds
-%   pathFG_max_N      scalar       max N where PathFG is used
-%   sim_length        scalar       total simulation time (s)
-%   params            struct       packed parameters
 
 function plotGraphMultiN( ...
     states_ts, ctrl_inputs_ts, MPC_time_ts, pfg_time_ts, ...
     reference_sig_ts, ...
     color, N, path, u_min, u_max, ...
-    pathFG_max_N, sim_length, params)
+    pathFG_max_N, sim_length, params, N_idx, N_list)
 
     global fig1;
 
-    fig_count  = 1;
-    line_width = 2;
+    line_width = 3;
+    is_first   = (N_idx == 1);
 
     %%
-
     figure(fig1);
-    fig_rows = 4;
+    fig_rows = 2;
     fig_cols = 1;
     font        = 'times';
-    font_size   = 12;
+    font_size   = 20;
     font_weight = 'normal';
     set(groot, ...
         defaultAxesFontSize   = 1.0 * font_size, ...
@@ -87,113 +69,163 @@ function plotGraphMultiN( ...
     %% ---- Subplot 1: Path progress [%] ----------------------------------
     ax = subplot(fig_rows, fig_cols, 1);
     hold on;
-    lgd = legend('Position',[0.74 0.837 0.1 0.05], Box='off', ...
+    set(gca, 'FontSize', round(0.7*font_size));
+    lgd = legend('Position',[0.70 0.73 0.1 0.05], Box='off', ...
                  BackgroundAlpha=0, FontWeight=font_weight, FontSize=0.82*font_size);
-    lgd.ItemTokenSize = [12, 10];
+    lgd.ItemTokenSize = [20, 16];
 
-    % total path length (RRT* path)
-    path_length = 0;
-    for node_idx = 1:size(path,1)-1
-        path_length = path_length + norm(path(node_idx+1,:) - path(node_idx,:));
-    end
-
-    % actual state cumulative distance  (normalised by path length)
     actual_pos = x_data(1:T, 1:2);                  % [T × 2]
     actual_cum = zeros(T, 1);
     for k = 2:T
         actual_cum(k) = actual_cum(k-1) + norm(actual_pos(k,:) - actual_pos(k-1,:));
     end
-    actual_pct = 100 * actual_cum / max(path_length, eps);
+    actual_pct = 100 * actual_cum / max(actual_cum(end), eps);
 
-    % auxiliary reference cumulative distance  (normalised by path length)
     ref_pos = ref_data(1:T, 1:2);                   % [T × 2]
     ref_cum = zeros(T, 1);
     for k = 2:T
         ref_cum(k) = ref_cum(k-1) + norm(ref_pos(k,:) - ref_pos(k-1,:));
     end
-    ref_pct = 100 * ref_cum / max(path_length, eps);
+    ref_pct = 100 * ref_cum / max(ref_cum(end), eps);
+
+    if N >= pathFG_max_N
+        ref_pct = 100 * ones(T,1);
+    end
 
     plot(t_ctrl, ref_pct, Color=color, LineWidth=line_width, LineStyle=':', ...
          DisplayName=strcat('$s$ ($N{=}',num2str(N),'$)'));
     plot(t_ctrl, actual_pct, Color=color, LineWidth=line_width, ...
          DisplayName=strcat('actual ($N{=}',num2str(N),'$)'));
 
-    if N < 10  % draw the y-label only once
-        ax.YAxis.Label.String  = '';
-        ax.YAxis.Label.Visible = 'off';
-        text(-1.3, 50, 'Path [\%]', ...
-            'Rotation',90, 'VerticalAlignment','bottom', ...
-            'HorizontalAlignment','center', ...
-            'FontSize',1.0*font_size, 'Color','black', ...
-            'FontWeight',font_weight, 'Interpreter','latex');
-    end
+        hy = ylabel('Path [\%]', Interpreter='latex');
+        hy.FontSize = round(1.1 * font_size); 
     xlim([0, sim_length]);
 
 
     %% ---- Subplot 2: Compute time [s]  (log scale) ----------------------
     ax = subplot(fig_rows, fig_cols, 2);
     hold on;
-    lgd = legend('Position',[0.56 0.71 0.1 0.05], Box='off', ...
+    set(gca, 'FontSize', round(0.7*font_size));
+    lgd = legend('Position',[0.6 0.23 0.1 0.05], Box='off', ...
                  BackgroundAlpha=0, FontSize=0.8*font_size, ...
                  FontWeight=font_weight, NumColumns=2, Orientation='horizontal');
-    lgd.ItemTokenSize = [12, 10];
+    lgd.ItemTokenSize = [20, 16];
     set(gca, 'YScale','log');
-    yticks([1e-4 1e-3 1e-2 1e-1 1]);
-    yticklabels({'10^{-4}','10^{-3}','10^{-2}','10^{-1}','10^{0}'});
 
     if N > pathFG_max_N
-        plot(t_ctrl, mpc_data, Color=color, LineWidth=line_width, ...
-             DisplayName=strcat('Ungoverned MPC ($N{=}',num2str(N),'$)'));
+        compute_series = mpc_data;
+        displayNameStr = strcat('Ungoverned MPC ($N{=}', num2str(N), '$)');
     else
-        plot(t_ctrl, pfg_data + mpc_data, Color=color, LineWidth=line_width, ...
-             DisplayName=strcat('PathFG+MPC ($N{=}',num2str(N),'$)'));
-        plot(t_ctrl, pfg_data, Color=color, LineWidth=line_width, LineStyle=':', ...
-             DisplayName=strcat('PathFG ($N{=}',num2str(N),'$)'));
+        compute_series = pfg_data + mpc_data;
+        displayNameStr = strcat('PathFG+MPC ($N{=}', num2str(N), '$)');
     end
-    ylabel('Compute Time [s]', FontWeight=font_weight);
+
+    % Decade range for this N
+    all_pos = [compute_series(:); pfg_data(:)];
+    pos_vals = all_pos(all_pos > 0);
+    if isempty(pos_vals)
+        kmin_this = -6; kmax_this = 0;
+    else
+        kmin_this = floor(log10(min(pos_vals)));
+        kmax_this = ceil(log10(max(pos_vals)));
+    end
+
+    % First call sets limits; subsequent calls only expand
+    if is_first
+        kmin = kmin_this;
+        kmax = kmax_this;
+    else
+        cur_ylim = ylim;
+        kmin_prev = floor(log10(cur_ylim(1)));
+        kmax_prev = round(log10(cur_ylim(2) / 3.0));
+        kmin = min(kmin_prev, kmin_this);
+        kmax = max(kmax_prev, kmax_this);
+    end
+    if (kmax - kmin) < 3
+        kmin = kmax - 3;
+    end
+
+    % Ticks at every decade; labels only for >= 10^{-3}
+    tick_exps = kmin:kmax;
+    yticks(10.^tick_exps);
+    tick_labels = cell(size(tick_exps));
+    for ti = 1:numel(tick_exps)
+        if tick_exps(ti) >= -3
+            tick_labels{ti} = sprintf('10^{%d}', tick_exps(ti));
+        else
+            tick_labels{ti} = '';
+        end
+    end
+    yticklabels(tick_labels);
+    ylim([10^kmin, 10^kmax * 3.0]);
+
+    % Plot compute series (clamp non-positive to floor for log visibility)
+    cs_plot = compute_series;
+    cs_plot(~isfinite(cs_plot) | cs_plot <= 0) = 10^kmin;
+    plot(t_ctrl, cs_plot, Color=color, LineWidth=line_width, DisplayName=displayNameStr);
+
+    if N <= pathFG_max_N
+        pfg_plot = pfg_data;
+        pfg_plot(1) = pfg_plot(2);  % remove first-sample spike (MATLAB artifact)
+        pfg_plot(~isfinite(pfg_plot) | pfg_plot <= 0) = 10^kmin;
+        plot(t_ctrl, pfg_plot, Color=color, LineWidth=line_width, LineStyle=':', ...
+             DisplayName=strcat('PathFG ($N{=}', num2str(N), '$)'));
+    end
+
+    hy = ylabel('Compute Time [s]', Interpreter='latex');
+    hy.FontSize = round(1.1 * font_size); 
     xlim([0, sim_length]);
+    xlabel('Time [s]');
 
 
-    %% ---- Subplot 3: Forward speed  v  [m/s] ----------------------------
-    ax = subplot(fig_rows, fig_cols, 3);
-    hold on;
-    lgd = legend('Position',[0.67 0.40 0.1 0.05], Orientation='horizontal', ...
-                 Box='off', BackgroundAlpha=0, FontWeight=font_weight);
-    lgd.ItemTokenSize = [14, 10];
-    plot(t_ctrl, u_data(:,2), Color=color, LineWidth=line_width, ...
-         DisplayName=strcat('$N{=}',num2str(N),'$'));
-    lgd.AutoUpdate = 'off';
-    yline(u_max(2));
-    yline(u_min(2));
-    lgd.AutoUpdate = 'on';
-    ylabel('Speed $v$ [m/s]', FontWeight=font_weight, Interpreter='latex');
-    ytickformat('%.1f');
-    xlim([0, sim_length]);
-    ylim([u_min(2), u_max(2)]);
+    %% Reorder legend entries by ascending N (on last call only)
+    is_last = (N_idx == numel(N_list));
+    if is_last
+        [~, sort_order] = sort(N_list);
+        for sp = 1:fig_rows
+            subplot(fig_rows, fig_cols, sp);
+            ax = gca;
+            % each governed N produces 2 entries, ungoverned produces 1 (subplot 1)
+            % or 1 (subplot 2); reorder children so ascending-N entries come first
+            ch = ax.Children;   % plot objects in reverse-creation order
+            ch = flipud(ch);    % now in creation order
+            n_runs = numel(N_list);
+            % figure out entries per run
+            entries_per_run = zeros(n_runs, 1);
+            for ri = 1:n_runs
+                Ni = N_list(ri);
+                if sp == 1
+                    entries_per_run(ri) = 2;  % ref_pct + actual_pct
+                else
+                    if Ni > pathFG_max_N
+                        entries_per_run(ri) = 1;  % ungoverned: compute only
+                    else
+                        entries_per_run(ri) = 2;  % governed: compute + pfg
+                    end
+                end
+            end
+            % build reordered index
+            new_order = [];
+            for ri = 1:n_runs
+                si = sort_order(ri);
+                offset = sum(entries_per_run(1:si-1));
+                new_order = [new_order, offset+1:offset+entries_per_run(si)];
+            end
+            if numel(new_order) == numel(ch)
+                ax.Children = flipud(ch(new_order));
+            end
+        end
+    end
 
-
-    %% ---- Subplot 4: Steering angle  θ  [rad] ---------------------------
-    ax = subplot(fig_rows, fig_cols, 4);
-    hold on;
-    lgd = legend('Position',[0.67 0.18 0.1 0.05], Orientation='horizontal', ...
-                 Box='off', BackgroundAlpha=0, FontWeight=font_weight);
-    lgd.ItemTokenSize = [14, 10];
-    ytickformat('%.1f');
-    plot(t_ctrl, u_data(:,1), Color=color, LineWidth=line_width, ...
-         DisplayName=strcat('$N{=}',num2str(N),'$'));
-    lgd.AutoUpdate = 'off';
-    yline(u_max(1));
-    yline(u_min(1));
-    lgd.AutoUpdate = 'on';
-    ylabel('Steering $\theta$ [rad]', FontWeight=font_weight, Interpreter='latex');
-    xlim([0, sim_length]);
-    xlabel('Time [s]', FontWeight=font_weight);
-
-
-    %% ---- Export ---------------------------------------------------------
-    for fig_idx = 1:fig_count
-        exportgraphics(figure(fig_idx), strcat('fig', num2str(fig_idx), '.pdf'), ...
-            BackgroundColor='none', ContentType='vector');
+    %% Export
+    fh = fig1;
+    if ~isgraphics(fh), fh = gcf; end
+    try
+        exportgraphics(fh, 'unicyclePerformance.pdf', ...
+                       'BackgroundColor','none', 'ContentType','vector');
+        fprintf('Exported unicyclePerformance.pdf\n');
+    catch ME
+        warning(ME.identifier, '%s', ME.message);
     end
 
 end

@@ -21,7 +21,12 @@
 %     – RED CIRCLE markers at any frame where the actual position
 %       lies inside an inflated obstacle (collision)
 
-function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs, buffer, start, goal)
+function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs, buffer, start, goal, varargin)
+    if ~isempty(varargin)
+        out_filename = varargin{1};
+    else
+        out_filename = '';
+    end
 
     %% ---- extract arrays from timeseries --------------------------------
     t_vec = states_ts.Time(:)';             % [1 × T]
@@ -94,8 +99,8 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
                   'LineWidth',1.5, 'HandleVisibility','off');
 
     % time annotation
-    h_time = text(ax, 0.02, 0.97, '', 'Units','normalized', ...
-                  'FontSize',12, 'VerticalAlignment','top');
+    h_time = text(ax, 0.02, 0.03, '', 'Units','normalized', ...
+                  'FontSize',12, 'VerticalAlignment','bottom');
 
     legend(ax, 'Location','best');
 
@@ -180,9 +185,10 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
         disp("  No collisions detected.");
     end
 
-    exportgraphics(fig, 'animateTrajectory.pdf', ...
-                   'ContentType','vector', 'BackgroundColor','none');
-    fprintf("Exported animateTrajectory.pdf\n");
+    if ~isempty(out_filename)
+        exportgraphics(fig, out_filename, 'ContentType','vector', 'BackgroundColor','none');
+        fprintf("Exported %s\n", out_filename);
+    end
 end
 
 

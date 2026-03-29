@@ -12,7 +12,7 @@ dim = 2;
 % Search bounds: enclose start, goal, and obstacles with some margin
 all_x = [start(1); goal(1); rect_obs(:,1); rect_obs(:,3)];
 all_y = [start(2); goal(2); rect_obs(:,2); rect_obs(:,4)];
-rrt_bounds_margin = 1.0;  % extra space around the bounding box
+rrt_bounds_margin = 1.5;  % extra space around the bounding box
 bounds_rrt = [min(all_x) - rrt_bounds_margin, max(all_x) + rrt_bounds_margin;
               min(all_y) - rrt_bounds_margin, max(all_y) + rrt_bounds_margin];
 rrt_search_time = 10;          % seconds
@@ -54,7 +54,7 @@ if animate_rrt || rrt_plot
         x1 = rect_obs(k,1); y1 = rect_obs(k,2);
         x2 = rect_obs(k,3); y2 = rect_obs(k,4);
         fill([x1 x2 x2 x1], [y1 y1 y2 y2], [0.7 0.7 0.7], ...
-             'EdgeColor', 'k', 'LineWidth', 1.5);
+             'EdgeColor', 'k', 'LineWidth', 1.5, 'HandleVisibility', 'off');
     end
 
     % plot inflated buffer zones
@@ -62,8 +62,14 @@ if animate_rrt || rrt_plot
         bx1 = rect_obs(k,1) - rrt_safety_margin; by1 = rect_obs(k,2) - rrt_safety_margin;
         bx2 = rect_obs(k,3) + rrt_safety_margin; by2 = rect_obs(k,4) + rrt_safety_margin;
         plot([bx1 bx2 bx2 bx1 bx1], [by1 by1 by2 by2 by1], ...
-             'r--', 'LineWidth', 1);
+             'r--', 'LineWidth', 1, 'HandleVisibility', 'off');
     end
+
+    % Invisible dummy handles for a clean, correctly-ordered legend
+    h_obs  = fill(NaN, NaN, [0.7 0.7 0.7], 'EdgeColor', 'k', 'LineWidth', 1.5);
+    h_buf  = plot(NaN, NaN, 'r--', 'LineWidth', 1);
+    h_tree = plot(NaN, NaN, tree_color, 'LineWidth', 1);
+    h_path = plot(NaN, NaN, 'r-', 'LineWidth', 4);
 end
 
 
@@ -111,10 +117,12 @@ for i = 1:max_iterations_rrt
         % live animation
         if animate_rrt
             if plot_nodes
-                plot(new_point(1), new_point(2), strcat(tree_color, "o"));
+                plot(new_point(1), new_point(2), strcat(tree_color, "o"), ...
+                     'HandleVisibility', 'off');
             end
             plot([nearest_point(1), new_point(1)], ...
-                 [nearest_point(2), new_point(2)], tree_color);
+                 [nearest_point(2), new_point(2)], tree_color, ...
+                 'HandleVisibility', 'off');
             drawnow;
         end
 
@@ -152,8 +160,12 @@ if goal_reached
     end
 
     if animate_rrt || rrt_plot
-        plot(path(:,1), path(:,2), 'r-', 'LineWidth', 4);
-        legend('Start', 'Goal', 'Obstacle', 'Buffer', 'Tree', 'Path', 'Location', 'best');
+        plot(path(:,1), path(:,2), 'r-', 'LineWidth', 4, 'HandleVisibility', 'off');
+        legend([findobj(gca,'MarkerFaceColor','g'), ...
+                findobj(gca,'MarkerFaceColor','r','Marker','o'), ...
+                h_obs, h_buf, h_tree, h_path], ...
+               {'Start','Goal','Obstacle','Buffer','Tree','Path'}, ...
+               'Location','best');
     end
 
     path = flip(path, 1);  % waypoints from start → goal
@@ -291,12 +303,14 @@ end
 function plotTree2D(tree, plot_nodes, color, dim)
     for k = 1:size(tree, 1)
         if plot_nodes
-            plot(tree(k,1), tree(k,2), strcat(color, "o"));
+            plot(tree(k,1), tree(k,2), strcat(color, "o"), ...
+                 'HandleVisibility', 'off');
         end
         pidx = tree(k, dim+2);
         if pidx ~= 0
             plot([tree(pidx,1), tree(k,1)], ...
-                 [tree(pidx,2), tree(k,2)], color);
+                 [tree(pidx,2), tree(k,2)], color, ...
+                 'HandleVisibility', 'off');
         end
     end
 end
