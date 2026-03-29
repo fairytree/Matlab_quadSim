@@ -86,8 +86,8 @@ for i = 1:max_iterations_rrt
     [seg_start, seg_dir, seg_len] = getParametricSegment(nearest_point, new_point);
     collided = false;
     for j = 1:size(rect_obs, 1)
-        inflated_min = rect_obs(j, 1:dim) - buffer;
-        inflated_max = rect_obs(j, dim+1:2*dim) + buffer;
+        inflated_min = rect_obs(j, 1:dim) - rrt_safety_margin;
+        inflated_max = rect_obs(j, dim+1:2*dim) + rrt_safety_margin;
         if lineSegmentAndBoxCollision(seg_start, seg_dir, seg_len, inflated_min, inflated_max)
             collided = true;
             break;
@@ -105,7 +105,7 @@ for i = 1:max_iterations_rrt
         % RRT* rewiring during growth
         if rrt_star_inclusion && ~optimize_after
             tree_rrt = rrtStarRewire(tree_rrt, size(tree_rrt,1), ...
-                max_distance_rrt_star, rect_obs, buffer, dim);
+                max_distance_rrt_star, rect_obs, rrt_safety_margin, dim);
         end
 
         % live animation
@@ -136,7 +136,7 @@ if goal_reached
     if rrt_star_inclusion && optimize_after
         for node_idx = 1:size(tree_rrt, 1)
             tree_rrt = rrtStarRewire(tree_rrt, node_idx, ...
-                max_distance_rrt_star, rect_obs, buffer, dim);
+                max_distance_rrt_star, rect_obs, rrt_safety_margin, dim);
         end
     end
 
@@ -242,7 +242,7 @@ function collided = lineSegmentAndBoxCollision(seg_start, seg_dir, seg_len, box_
     collided = ~(t_exit < 0 || t_enter > seg_len);
 end
 
-function tree = rrtStarRewire(tree, node_idx, max_dist, rect_obs, buffer, dim)
+function tree = rrtStarRewire(tree, node_idx, max_dist, rect_obs, rrt_safety_margin, dim)
     % Find neighbours within max_dist
     nbrs = [];
     for k = 1:size(tree, 1)
@@ -256,7 +256,7 @@ function tree = rrtStarRewire(tree, node_idx, max_dist, rect_obs, buffer, dim)
         ni = nbrs(ii);
         candidate_cost = norm(tree(ni,1:dim) - tree(node_idx,1:dim)) + tree(node_idx, dim+1);
         if tree(ni, dim+1) > candidate_cost
-            if ~segmentCollidesWithObs(tree(ni,1:dim), tree(node_idx,1:dim), rect_obs, buffer, dim)
+            if ~segmentCollidesWithObs(tree(ni,1:dim), tree(node_idx,1:dim), rect_obs, rrt_safety_margin, dim)
                 tree(ni, dim+1) = candidate_cost;
                 tree(ni, dim+2) = node_idx;
             end
@@ -268,7 +268,7 @@ function tree = rrtStarRewire(tree, node_idx, max_dist, rect_obs, buffer, dim)
         ni = nbrs(ii);
         candidate_cost = norm(tree(ni,1:dim) - tree(node_idx,1:dim)) + tree(ni, dim+1);
         if tree(node_idx, dim+1) > candidate_cost
-            if ~segmentCollidesWithObs(tree(ni,1:dim), tree(node_idx,1:dim), rect_obs, buffer, dim)
+            if ~segmentCollidesWithObs(tree(ni,1:dim), tree(node_idx,1:dim), rect_obs, rrt_safety_margin, dim)
                 tree(node_idx, dim+1) = candidate_cost;
                 tree(node_idx, dim+2) = ni;
             end
@@ -276,12 +276,12 @@ function tree = rrtStarRewire(tree, node_idx, max_dist, rect_obs, buffer, dim)
     end
 end
 
-function hit = segmentCollidesWithObs(p1, p2, rect_obs, buffer, dim)
+function hit = segmentCollidesWithObs(p1, p2, rect_obs, rrt_safety_margin, dim)
     [s, d, l] = getParametricSegment(p1, p2);
     hit = false;
     for j = 1:size(rect_obs, 1)
-        inflated_min = rect_obs(j, 1:dim) - buffer;
-        inflated_max = rect_obs(j, dim+1:2*dim) + buffer;
+        inflated_min = rect_obs(j, 1:dim) - rrt_safety_margin;
+        inflated_max = rect_obs(j, dim+1:2*dim) + rrt_safety_margin;
         if lineSegmentAndBoxCollision(s, d, l, inflated_min, inflated_max)
             hit = true; return;
         end

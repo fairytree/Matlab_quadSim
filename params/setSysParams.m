@@ -6,7 +6,7 @@ state_min = [-Inf; -Inf];
 state_max = -state_min;
 
 input_min = [-2*pi; 0];
-input_max = [2*pi; 3.0];
+input_max = [2*pi; 1.0];
 
 controller_sample_time = 1/10;
 continous_sample_time = 1/1000;
