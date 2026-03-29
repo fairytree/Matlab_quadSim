@@ -9,4 +9,5 @@
 % ]
 % in the case of a unicycle, it's 2D, so there's no z-coordinate
 rect_obs = [2, 0, 4, 4; 0, 1, 1, 2];
-buffer = 0.3;
+buffer = 0.15; % MPC safety margin
+rrt_safety_margin = 1.5 * buffer;

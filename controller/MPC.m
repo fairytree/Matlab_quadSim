@@ -94,7 +94,8 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
         nonlin_constr(N*n_o+j) = -max_dist + buffer;
     end
     % terminal set constraint: ||x_N - ref||^2 <= lyapunov_thresh
-    nonlin_constr(end) = (term_pos - ref_state)' * (term_pos - ref_state) - lyapunov_thresh;
+    % fmincon requires c(x) <= 0
+    nonlin_constr(end) = -termEnergyDSM(term_pos, ref_state, params);
 
     % equality constraints: initial condition + dynamics
     nonlin_eq_constr = zeros((N + 1) * n_x, 1);

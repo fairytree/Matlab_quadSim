@@ -12,13 +12,13 @@ dim = 2;
 % Search bounds: enclose start, goal, and obstacles with some margin
 all_x = [start(1); goal(1); rect_obs(:,1); rect_obs(:,3)];
 all_y = [start(2); goal(2); rect_obs(:,2); rect_obs(:,4)];
-rrt_margin = 1;  % extra space around the bounding box
-bounds_rrt = [min(all_x) - rrt_margin, max(all_x) + rrt_margin;
-              min(all_y) - rrt_margin, max(all_y) + rrt_margin];
-rrt_search_time = 5;          % seconds
+rrt_bounds_margin = 1.0;  % extra space around the bounding box
+bounds_rrt = [min(all_x) - rrt_bounds_margin, max(all_x) + rrt_bounds_margin;
+              min(all_y) - rrt_bounds_margin, max(all_y) + rrt_bounds_margin];
+rrt_search_time = 10;          % seconds
 optimize_after = true;
 goal_frequency_rrt = 0.5;
-max_iterations_rrt = 1000;
+max_iterations_rrt = 3000;
 step_size_rrt = 0.1;
 threshold_rrt = 0.1;
 rrt_star_inclusion = true;
@@ -59,8 +59,8 @@ if animate_rrt || rrt_plot
 
     % plot inflated buffer zones
     for k = 1:size(rect_obs, 1)
-        bx1 = rect_obs(k,1) - buffer; by1 = rect_obs(k,2) - buffer;
-        bx2 = rect_obs(k,3) + buffer; by2 = rect_obs(k,4) + buffer;
+        bx1 = rect_obs(k,1) - rrt_safety_margin; by1 = rect_obs(k,2) - rrt_safety_margin;
+        bx2 = rect_obs(k,3) + rrt_safety_margin; by2 = rect_obs(k,4) + rrt_safety_margin;
         plot([bx1 bx2 bx2 bx1 bx1], [by1 by1 by2 by2 by1], ...
              'r--', 'LineWidth', 1);
     end
