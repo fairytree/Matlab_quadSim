@@ -1,7 +1,5 @@
 %%  Main_unicycle.m — 2D Unicycle Path Planning & Simulation
 %   Entry point for the unicycle workspace.
-%   Phase 1: parameter setup + RRT* path planning + visualization.
-%   Phase 2 (TODO): MPC tracking via Simulink.
 clear;
 close all;
 clc;
@@ -16,19 +14,20 @@ addpath('plant');
 addpath('controller');
 addpath('governor');
 addpath('dynamicSafetyMargin');
+addpath('collisionCheck');
 
 
 %% ---- Set parameters ----------------------------------------------------
-setSysParams;       % start, goal, state_min/max, input_min/max
-setObstacles;       % rect_obs, buffer
+setSysParams;
+setObstacles;
+setPathfgParams;
+setMPCParams; 
 
-% setPlannerParams;        
-% setPathfgParams;    
-% computeAndPack;    
-% setMPCParams;
-% setStructs;
-
-
+% set frequencies
+sample_time_pathFG = 0.1;
+controller_sampling_time = 0.1;
+sample_time_controller_outer = 0.1;
+sample_time_continous = 0.1;
 
 %% ---- Run path planner --------------------------------------------------
 disp("Running RRT* path planner ...");
@@ -38,14 +37,45 @@ disp("Path planning complete.");
 disp(strcat("  Waypoints: ", num2str(size_of_path)));
 
 
-%% ---- TODO: MPC + Simulink integration ---------------------------------
+%% ---- plot ----
+global fig1;                                                    
+fig1 = figure('Position',[0, 0, 480, 800], 'Name','Multi-N Comparison');
 
-% prediction_horizon_MPC = N;
-% sim_start = tic;
-% disp("Simulink simulation started");
-% sim_out = sim("sim.slx");
-% disp("Simulink simulation ended");
-% sim_time = toc(sim_start);
-% disp(strcat("Total simulation time: ", num2str(sim_time)));
+for N_idx = 1:numel(N_list)
+    N = N_list(N_idx);
+    fprintf('\n====== Run %d / %d  (N = %d) ======\n', N_idx, numel(N_list), N);
+
+    % Re-pack params with the current N
+    computeAndPack;
+    params.path      = path;
+    params.path_size = size_of_path;
+
+    % Simulation
+    disp("Simulink simulation started");
+    % bdclose('Sim_unicycle');   % force close model
+    % load_system('Sim_unicycle'); % reload clean
+    sim("Sim_unicycle.slx");
+    disp("Simulink simulation ended");
+
+    % Plot graphs
+    plotGraphMultiN( ...
+        ans.states, ...
+        ans.ctrl_inputs, ...
+        ans.MPC_time, ...
+        ans.pathFG_time, ...
+        ans.reference_signal, ...
+        colors(N_idx), ...
+        N, ...
+        path, ...
+        input_min, ...
+        input_max, ...
+        pathFG_max_N, ...
+        sim_duration, ...
+        params);
+end
+
+animateTrajectory( ...
+    ans.states, ans.ctrl_inputs, ans.reference_signal, ...
+    path, rect_obs, buffer, start, goal);
 
 disp("=== Unicycle Simulation Ended ===");

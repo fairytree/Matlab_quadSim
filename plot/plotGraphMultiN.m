@@ -1,40 +1,44 @@
-% Plot multiple prediction horizons
+% Plot multiple prediction horizons — 2D Unicycle version
+% Adapted from the quadrotor plotGraphMultiN.m, same visual format.
+%
+% Called once per N value.  Each call overlays one more set of curves
+% onto the persistent figure fig1.
+%
+% INPUTS  (all Simulink timeseries from "To Workspace" blocks)
+%   states_ts         timeseries   actual system states     [T × n_x]
+%   ctrl_inputs_ts    timeseries   MPC control inputs       [T × n_u]
+%   MPC_time_ts       timeseries   MPC solve time           [T × 1]
+%   pfg_time_ts       timeseries   PathFG solve time        [T × 1]
+%   reference_sig_ts  timeseries   PathFG auxiliary ref     [T × n_x]
+%   color             color spec   line colour for this run
+%   N                 scalar       prediction horizon
+%   path              [W × 2]     RRT* waypoints
+%   u_min             [n_u × 1]   input lower bounds
+%   u_max             [n_u × 1]   input upper bounds
+%   pathFG_max_N      scalar       max N where PathFG is used
+%   sim_length        scalar       total simulation time (s)
+%   params            struct       packed parameters
+
 function plotGraphMultiN( ...
-    reference_signal,...
-    non_linear_full_states,...
-    PathFG_time, ...
-    MPC_time, ...
-    ctrl_inputs, ...
-    color,...
-    goal, ...
-    u_min, ...
-    u_max, ...
-    x_max,...
-    N, ...
-    iterations, ...
-    N_idx, ...
-    aux_ref_params, ...
-    path, ...
-    MPC_x0, ...
-    mass, ...
-    g, ...
-    PathFG_max_N, ...
-    sim_length)
+    states_ts, ctrl_inputs_ts, MPC_time_ts, pfg_time_ts, ...
+    reference_sig_ts, ...
+    color, N, path, u_min, u_max, ...
+    pathFG_max_N, sim_length, params)
 
     global fig1;
 
-    fig_count = 1;
-    line_width = 2;   
+    fig_count  = 1;
+    line_width = 2;
 
     %%
 
     figure(fig1);
-    fig5_rows = 5;
-    fig5_cols = 1;
-    font = 'times';
-    font_size = 12;
+    fig_rows = 4;
+    fig_cols = 1;
+    font        = 'times';
+    font_size   = 12;
     font_weight = 'normal';
-    set(groot, ... "groot" stands for "graphics root"
+    set(groot, ...
         defaultAxesFontSize   = 1.0 * font_size, ...
         defaultAxesFontName   = font, ...
         defaultAxesFontWeight = font_weight, ...
@@ -54,137 +58,142 @@ function plotGraphMultiN( ...
         defaultTextFontWeight  = font_weight ...
     )
 
+    % Extract raw arrays from timeseries
+    t_ctrl  = ctrl_inputs_ts.Time;           % [T × 1]
+    u_data  = squeeze(ctrl_inputs_ts.Data);  % [T × n_u]  or  [n_u × T]
+    t_state = states_ts.Time;                % [(T+1) × 1]
+    x_data  = squeeze(states_ts.Data);       % [(T+1) × n_x]  or  [n_x × (T+1)]
 
-    % subfigure
-    ax = subplot(fig5_rows, fig5_cols, 1);
-    hold on;
-    lgd = legend('Position',[0.74 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);
-    lgd.ItemTokenSize = [12, 10]; 
-    % lgd.Orientation = 'horizontal';
-    % convert s into a length
-    length_from_start = zeros(1, numel(aux_ref_params.Data));
-    for s_idx = 1:numel(aux_ref_params.Data)
-        length_from_start(s_idx) = getLengthFromStart(aux_ref_params.Data(s_idx), path);
+    % Ensure row = sample, col = channel  (handle both orientations)
+    if size(u_data,1) ~= numel(t_ctrl)
+        u_data = u_data';
     end
-    % total length of path
+    if size(x_data,1) ~= numel(t_state)
+        x_data = x_data';
+    end
+
+    T = size(u_data, 1);   % number of control steps
+
+    mpc_data = squeeze(MPC_time_ts.Data(:));  % [T × 1]
+    pfg_data = squeeze(pfg_time_ts.Data(:));  % [T × 1]
+
+    % Auxiliary reference from PathFG
+    ref_data = squeeze(reference_sig_ts.Data);  % [T × n_x] or [n_x × T]
+    if size(ref_data,1) ~= numel(reference_sig_ts.Time)
+        ref_data = ref_data';
+    end
+
+
+    %% ---- Subplot 1: Path progress [%] ----------------------------------
+    ax = subplot(fig_rows, fig_cols, 1);
+    hold on;
+    lgd = legend('Position',[0.74 0.837 0.1 0.05], Box='off', ...
+                 BackgroundAlpha=0, FontWeight=font_weight, FontSize=0.82*font_size);
+    lgd.ItemTokenSize = [12, 10];
+
+    % total path length (RRT* path)
     path_length = 0;
     for node_idx = 1:size(path,1)-1
         path_length = path_length + norm(path(node_idx+1,:) - path(node_idx,:));
     end
-    path_percentage = 100 * length_from_start / path_length; % normalize and convert to percentage
-    % get the path percentage of the actual state
-    actual_path = MPC_x0.Data(1:3,:)'; % get the path p (the position) has taken
-    actual_length_from_start = zeros(1, size(actual_path, 1));
-    for p_idx = 1:size(actual_path, 1) % p stands for position
-        actual_length_from_start(p_idx) = getLengthFromStart(p_idx, actual_path);
-    end
-    actual_path_length = getLengthFromStart(size(actual_path, 1), actual_path); % length of the path taken by p
-    actual_path_percentage = 100 * actual_length_from_start / actual_path_length; % convert to percentage
-    plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ ($N{=}',num2str(N),'$)'));
-    plot(MPC_x0.Time, actual_path_percentage, Color=color, LineWidth=line_width, DisplayName=strcat('actual ($N{=}',num2str(N),'$)'));
-    
-    % Position the right Y lable at a customized position
-    if N < 10  % only draw once
-        % 1. FIRST completely remove the default label
-        ax.YAxis.Label.String = '';
-        ax.YAxis.Label.Visible = 'off';
-        % 2. THEN add a custom text label in exact position
-        right_label_x = -1.3; % Adjust 0.08 as needed
-        right_label_y = 50;
-        text(right_label_x, right_label_y, ...
-            'Path [\%]', ...
-            'Rotation', 90, ...
-            'VerticalAlignment', 'bottom', ...
-            'HorizontalAlignment', 'center', ...
-            'FontSize', 1.0*font_size, ...
-            'Color', 'black', ...
-            'FontWeight',font_weight,...
-            'Interpreter', 'latex');
-    end
 
+    % actual state cumulative distance  (normalised by path length)
+    actual_pos = x_data(1:T, 1:2);                  % [T × 2]
+    actual_cum = zeros(T, 1);
+    for k = 2:T
+        actual_cum(k) = actual_cum(k-1) + norm(actual_pos(k,:) - actual_pos(k-1,:));
+    end
+    actual_pct = 100 * actual_cum / max(path_length, eps);
+
+    % auxiliary reference cumulative distance  (normalised by path length)
+    ref_pos = ref_data(1:T, 1:2);                   % [T × 2]
+    ref_cum = zeros(T, 1);
+    for k = 2:T
+        ref_cum(k) = ref_cum(k-1) + norm(ref_pos(k,:) - ref_pos(k-1,:));
+    end
+    ref_pct = 100 * ref_cum / max(path_length, eps);
+
+    plot(t_ctrl, ref_pct, Color=color, LineWidth=line_width, LineStyle=':', ...
+         DisplayName=strcat('$s$ ($N{=}',num2str(N),'$)'));
+    plot(t_ctrl, actual_pct, Color=color, LineWidth=line_width, ...
+         DisplayName=strcat('actual ($N{=}',num2str(N),'$)'));
+
+    if N < 10  % draw the y-label only once
+        ax.YAxis.Label.String  = '';
+        ax.YAxis.Label.Visible = 'off';
+        text(-1.3, 50, 'Path [\%]', ...
+            'Rotation',90, 'VerticalAlignment','bottom', ...
+            'HorizontalAlignment','center', ...
+            'FontSize',1.0*font_size, 'Color','black', ...
+            'FontWeight',font_weight, 'Interpreter','latex');
+    end
     xlim([0, sim_length]);
 
 
-
-    % subfigure
-    ax = subplot(fig5_rows, fig5_cols, 2);
+    %% ---- Subplot 2: Compute time [s]  (log scale) ----------------------
+    ax = subplot(fig_rows, fig_cols, 2);
     hold on;
-    lgd = legend('Position', [0.56 0.71 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
-    lgd.ItemTokenSize = [12, 10]; 
-    yscale log;
-    set(gca, 'YScale', 'log');  % Convert to log
-    yticks([1e-3 1e-2 1e-1 1]);
-    yticklabels({'10^{-3}','10^{-2}','10^{-1}','10^{0}'});
+    lgd = legend('Position',[0.56 0.71 0.1 0.05], Box='off', ...
+                 BackgroundAlpha=0, FontSize=0.8*font_size, ...
+                 FontWeight=font_weight, NumColumns=2, Orientation='horizontal');
+    lgd.ItemTokenSize = [12, 10];
+    set(gca, 'YScale','log');
+    yticks([1e-4 1e-3 1e-2 1e-1 1]);
+    yticklabels({'10^{-4}','10^{-3}','10^{-2}','10^{-1}','10^{0}'});
 
-    if N > PathFG_max_N
-        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('Ungoverned MPC ($N{=}',num2str(N),'$)'));
+    if N > pathFG_max_N
+        plot(t_ctrl, mpc_data, Color=color, LineWidth=line_width, ...
+             DisplayName=strcat('Ungoverned MPC ($N{=}',num2str(N),'$)'));
     else
-        plot(PathFG_time.Time, PathFG_time.Data + MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('PathFG+MPC ($N{=}',num2str(N),'$)'));
-        plot(PathFG_time.Time, PathFG_time.Data, Color=color, LineWidth=line_width, LineStyle=':', DisplayName=strcat('PathFG ($N{=}',num2str(N),'$)'));
+        plot(t_ctrl, pfg_data + mpc_data, Color=color, LineWidth=line_width, ...
+             DisplayName=strcat('PathFG+MPC ($N{=}',num2str(N),'$)'));
+        plot(t_ctrl, pfg_data, Color=color, LineWidth=line_width, LineStyle=':', ...
+             DisplayName=strcat('PathFG ($N{=}',num2str(N),'$)'));
     end
-    % ylabel({'Compute', 'Time [s]'}, FontWeight=font_weight);
     ylabel('Compute Time [s]', FontWeight=font_weight);
     xlim([0, sim_length]);
 
 
-
-    % subfigure
-    ax = subplot(fig5_rows, fig5_cols, 3);
+    %% ---- Subplot 3: Forward speed  v  [m/s] ----------------------------
+    ax = subplot(fig_rows, fig_cols, 3);
     hold on;
-    lgd = legend('Position', [0.67 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
-    lgd.ItemTokenSize = [14, 10]; 
-    p_dot = sqrt(non_linear_full_states.Data(:, 4).^2 + non_linear_full_states.Data(:, 5).^2 + non_linear_full_states.Data(:, 6).^2);
-    plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
-    p_dot_max = sqrt(x_max(4)^2 + x_max(5)^2 + x_max(6)^2);
+    lgd = legend('Position',[0.67 0.40 0.1 0.05], Orientation='horizontal', ...
+                 Box='off', BackgroundAlpha=0, FontWeight=font_weight);
+    lgd.ItemTokenSize = [14, 10];
+    plot(t_ctrl, u_data(:,2), Color=color, LineWidth=line_width, ...
+         DisplayName=strcat('$N{=}',num2str(N),'$'));
     lgd.AutoUpdate = 'off';
-    yline(p_dot_max);
+    yline(u_max(2));
+    yline(u_min(2));
     lgd.AutoUpdate = 'on';
-    ylabel('Speed [m/s]', FontWeight=font_weight);
+    ylabel('Speed $v$ [m/s]', FontWeight=font_weight, Interpreter='latex');
     ytickformat('%.1f');
     xlim([0, sim_length]);
-    ylim([0, p_dot_max]);
+    ylim([u_min(2), u_max(2)]);
 
-    % subfigure
-    ax = subplot(fig5_rows, fig5_cols, 4);
+
+    %% ---- Subplot 4: Steering angle  θ  [rad] ---------------------------
+    ax = subplot(fig_rows, fig_cols, 4);
     hold on;
-    lgd = legend('Position', [0.67 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
-    lgd.ItemTokenSize = [14, 10]; 
+    lgd = legend('Position',[0.67 0.18 0.1 0.05], Orientation='horizontal', ...
+                 Box='off', BackgroundAlpha=0, FontWeight=font_weight);
+    lgd.ItemTokenSize = [14, 10];
     ytickformat('%.1f');
-    plot(ctrl_inputs.Time, ctrl_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    plot(t_ctrl, u_data(:,1), Color=color, LineWidth=line_width, ...
+         DisplayName=strcat('$N{=}',num2str(N),'$'));
     lgd.AutoUpdate = 'off';
-    yline(u_max(1) + mass * g);
-    yline(u_min(1) + mass * g);
+    yline(u_max(1));
+    yline(u_min(1));
     lgd.AutoUpdate = 'on';
-    ylabel({'Total Thrust [N]'}, FontWeight=font_weight);
+    ylabel('Steering $\theta$ [rad]', FontWeight=font_weight, Interpreter='latex');
     xlim([0, sim_length]);
-
-
-    % subfigure
-    ax = subplot(fig5_rows, fig5_cols, 5);
-    hold on;
-    lgd = legend('Position', [0.67 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
-    lgd.ItemTokenSize = [14, 10]; 
-    angular_speeds = sqrt(ctrl_inputs.Data(2,:).^2 + ctrl_inputs.Data(3,:).^2 + ctrl_inputs.Data(4,:).^2);
-    ytickformat('%.1f');
-    plot(ctrl_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
-    lgd.AutoUpdate = 'off';
-    u_upper = sqrt(u_max(2)^2 + u_max(3)^2 + u_max(4)^2);
-    yline(u_upper);
-    lgd.AutoUpdate = 'on';
-    ylabel({'Angular'; 'Speed [rad/s]'}, FontWeight=font_weight);
-    xlim([0, sim_length]);
-    ylim([0, u_upper]);
     xlabel('Time [s]', FontWeight=font_weight);
-    
 
 
-    %%
-
-    % exportation
+    %% ---- Export ---------------------------------------------------------
     for fig_idx = 1:fig_count
-        exportgraphics(figure(fig_idx), strcat('fig', num2str(fig_idx), '.pdf'),  BackgroundColor='none', ContentType='vector');
+        exportgraphics(figure(fig_idx), strcat('fig', num2str(fig_idx), '.pdf'), ...
+            BackgroundColor='none', ContentType='vector');
     end
-
-     
 
 end

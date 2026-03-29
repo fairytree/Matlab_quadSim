@@ -1,10 +1,11 @@
-function [opt_deci_var, term_pred_state] = MPC(curr_state, ref, params)
+function [opt_input, term_pred_state] = MPC(curr_state, ref, params)
 
     n_x = params.n_x;
+    n_u = params.n_u;
     quad_cost_mat = params.quad_cost_mat;
     lower_bound = params.lower_bound;
     upper_bound = params.upper_bound;
-    max_iters = params.max_iters;
+    MPC_max_iters = params.MPC_max_iters;
 
     ref_state = ref;
     [A, b, A_eq, b_eq] = getLinConstr();
@@ -16,9 +17,9 @@ function [opt_deci_var, term_pred_state] = MPC(curr_state, ref, params)
     options = optimoptions(...
         'fmincon',...
         Algorithm='interior-point',...
-        MaxIterations=max_iters,...
-        Display='notify-detailed',...
-        MaxFunctionEvaluations=100000 ...
+        MaxIterations=MPC_max_iters,...
+        Display='off',...
+        SpecifyObjectiveGradient=true...
     );
     opt_deci_var = fmincon(...
         cost_with_grad_func,...
@@ -29,6 +30,7 @@ function [opt_deci_var, term_pred_state] = MPC(curr_state, ref, params)
         options...
     );
     term_pred_state = opt_deci_var(end-n_x+1:end);
+    opt_input = opt_deci_var(n_x+1:n_x+n_u);
 
 end
 
@@ -54,17 +56,18 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
     rect_obs = params.rect_obs;
     buffer = params.buffer;
     dim = params.dim;
+    dt = params.dt;
     lyapunov_thresh = params.lyapunov_thresh;
 
     n_o = size(rect_obs, 1);
-    constr_count = N * n_o + 1;
-    nonlin_constr = zeros(constr_count, 1);
-    eq_constr_count = (N + 1) * n_o;
-    nonlin_eq_constr = zeros(eq_constr_count, 1);
+    step_size = n_x + n_u;
 
-    % obstacle constrarints
+    % obstacle constraints for all N+1 states + 1 terminal set constraint
+    nonlin_constr = zeros((N+1) * n_o + 1, 1);
+
+    % obstacle constraints for states 0..N-1
     for i = 0:N-1 % loop over predicted states
-        start_idx = i * (n_x + n_u) + 1;
+        start_idx = i * step_size + 1;
         pos = deci_var(start_idx:start_idx+dim-1);
         for j = 1:n_o % loop over obstacles
             max_dist = -Inf;
@@ -77,19 +80,35 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
             nonlin_constr(i*n_o+j) = -max_dist + buffer;
         end
     end
-    % terminal set constraint
-    term_state = TODO_USE_THE_FUNC;
+    % obstacle constraints for terminal state x_N
+    term_idx = N * step_size + 1;
+    term_pos = deci_var(term_idx:term_idx+dim-1);
+    for j = 1:n_o
+        max_dist = -Inf;
+        for k = 1:dim
+            dist = max(rect_obs(j,k)-term_pos(k), term_pos(k)-rect_obs(j,k+dim));
+            if dist > max_dist
+                max_dist = dist;
+            end
+        end
+        nonlin_constr(N*n_o+j) = -max_dist + buffer;
+    end
+    % terminal set constraint: ||x_N - ref||^2 <= lyapunov_thresh
+    nonlin_constr(end) = (term_pos - ref_state)' * (term_pos - ref_state) - lyapunov_thresh;
+
+    % equality constraints: initial condition + dynamics
+    nonlin_eq_constr = zeros((N + 1) * n_x, 1);
 
     % initial condition
     nonlin_eq_constr(1:n_x) = deci_var(1:n_x) - curr_state;
     % system model constraints
     for i = 1:N
-        curr_start_idx = i * (n_x + n_u) + 1;
+        curr_start_idx = i * step_size + 1;
         prev_start_idx = curr_start_idx - n_x - n_u;
-        curr_pred_state = deci_var(curr_start_idx:curr_start_idx+n_x-1); % predicted state from timestep i (xi_i)
-        prev_pred_state = deci_var(prev_start_idx:prev_start_idx+n_x-1); % predicted state from timestep i-1 (xi_{i-1})
-        prev_pred_input = deci_var(prev_start_idx+n_x:curr_start_idx-1); % predicted control input (mu_{i-1})
-        nonlin_eq_constr(i*n_x+1:(i+1)*n_x) = getNextState(prev_pred_state, prev_pred_input) - curr_pred_state;
+        curr_pred_state = deci_var(curr_start_idx:curr_start_idx+n_x-1);
+        prev_pred_state = deci_var(prev_start_idx:prev_start_idx+n_x-1);
+        prev_pred_input = deci_var(prev_start_idx+n_x:curr_start_idx-1);
+        nonlin_eq_constr(i*n_x+1:(i+1)*n_x) = getNextState(prev_pred_state, prev_pred_input, dt) - curr_pred_state;
     end
 
 end
@@ -102,10 +121,10 @@ function init_guess = getInitGuess(curr_state, params)
 end
 
 % predict the state on the next timestep using the system equations
-function next_state = getNextState(curr_state, ctrl_input)
+function next_state = getNextState(curr_state, ctrl_input, dt)
     angle = ctrl_input(1);
     speed = ctrl_input(2);
-    next_state = curr_state + speed * [cos(angle); sin(angle)];
+    next_state = curr_state + dt * speed * [cos(angle); sin(angle)];
 end
 
 % stage cost = q * norm(x - r)^2

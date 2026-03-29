@@ -15,10 +15,10 @@ all_y = [start(2); goal(2); rect_obs(:,2); rect_obs(:,4)];
 rrt_margin = 1;  % extra space around the bounding box
 bounds_rrt = [min(all_x) - rrt_margin, max(all_x) + rrt_margin;
               min(all_y) - rrt_margin, max(all_y) + rrt_margin];
-rrt_search_time = 10;          % seconds
+rrt_search_time = 5;          % seconds
 optimize_after = true;
 goal_frequency_rrt = 0.5;
-max_iterations_rrt = 5000;
+max_iterations_rrt = 1000;
 step_size_rrt = 0.1;
 threshold_rrt = 0.1;
 rrt_star_inclusion = true;

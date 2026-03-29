@@ -41,7 +41,7 @@ function collided = lineSegmentAndBoxCollision(segment_start, ...
     
     % iterate 3 axes, as for a point to be inside box, all three axes need to
     % satisfy the above equation (2). 
-    for i = 1:3
+    for i = 1:length(segment_start)
         if abs(segment_direction_normalized(i)) < 1e-12
             % Ray is parallel to any axis
             if segment_start(i) < box_min(i) || segment_start(i) > box_max(i)

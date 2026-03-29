@@ -4,10 +4,13 @@ function [s, ref] = pathFG(prev_term_state, prev_s, prev_ref, params)
     path_size = params.path_size;
     DSM_min = params.DSM_min;
     DSM_max = params.DSM_max;
+    pathFG_kappa = params.pathFG_kappa;
+    pathFG_max_iters = params.pathFG_max_iters;
 
     if prev_s == path_size % goal reached
         s = prev_s;
         ref = prev_ref;
+        ref = reshape(ref, [], 1);
         return;
     end
 
@@ -18,6 +21,7 @@ function [s, ref] = pathFG(prev_term_state, prev_s, prev_ref, params)
     DSM = termEnergyDSM(prev_term_state, ref, params);
     result = checkDSMFeasibility(DSM, DSM_min, DSM_max); 
     if result == 1 || result == 0 % goal is feasible
+        ref = reshape(ref, [], 1);
         return;
     end
     
@@ -43,6 +47,8 @@ function [s, ref] = pathFG(prev_term_state, prev_s, prev_ref, params)
         disp("PathFG max iterations reached");
     end
 
+     % reshape into a column vector to ensure data integrity
+     ref = reshape(ref, [], 1);
 end
 
 % check if the DSM is within the target range
