@@ -102,15 +102,14 @@ function plotGraphMultiN( ...
     xlim([0, sim_length]);
 
 
-    %% ---- Subplot 2: Compute time [s]  (log scale) ----------------------
+    %% ---- Subplot 2: Compute time [s] -----------------------------------
     ax = subplot(fig_rows, fig_cols, 2);
     hold on;
     set(gca, 'FontSize', round(0.7*font_size));
-    lgd = legend('Position',[0.6 0.23 0.1 0.05], Box='off', ...
+    lgd = legend('Position',[0.56 0.34 0.1 0.05], Box='off', ...
                  BackgroundAlpha=0, FontSize=0.8*font_size, ...
                  FontWeight=font_weight, NumColumns=2, Orientation='horizontal');
     lgd.ItemTokenSize = [20, 16];
-    set(gca, 'YScale','log');
 
     if N > pathFG_max_N
         compute_series = mpc_data;
@@ -120,54 +119,63 @@ function plotGraphMultiN( ...
         displayNameStr = strcat('PathFG+MPC ($N{=}', num2str(N), '$)');
     end
 
-    % Decade range for this N
-    all_pos = [compute_series(:); pfg_data(:)];
-    pos_vals = all_pos(all_pos > 0);
-    if isempty(pos_vals)
-        kmin_this = -6; kmax_this = 0;
-    else
-        kmin_this = floor(log10(min(pos_vals)));
-        kmax_this = ceil(log10(max(pos_vals)));
-    end
 
-    % First call sets limits; subsequent calls only expand
-    if is_first
-        kmin = kmin_this;
-        kmax = kmax_this;
-    else
-        cur_ylim = ylim;
-        kmin_prev = floor(log10(cur_ylim(1)));
-        kmax_prev = round(log10(cur_ylim(2) / 3.0));
-        kmin = min(kmin_prev, kmin_this);
-        kmax = max(kmax_prev, kmax_this);
-    end
-    if (kmax - kmin) < 3
-        kmin = kmax - 3;
-    end
+    %% Plot in regular scale
+    ylim([0, 0.22]); 
+    compute_series_plot = compute_series;
+    compute_series_plot(1) = compute_series_plot(2);  % align with pfg plot for visual comparison
+    plot(t_ctrl, compute_series_plot, Color=color, LineWidth=line_width, DisplayName=displayNameStr);
 
-    % Ticks at every decade; labels only for >= 10^{-3}
-    tick_exps = kmin:kmax;
-    yticks(10.^tick_exps);
-    tick_labels = cell(size(tick_exps));
-    for ti = 1:numel(tick_exps)
-        if tick_exps(ti) >= -3
-            tick_labels{ti} = sprintf('10^{%d}', tick_exps(ti));
-        else
-            tick_labels{ti} = '';
-        end
-    end
-    yticklabels(tick_labels);
-    ylim([10^kmin, 10^kmax * 3.0]);
+    %% plot in log scale
+    % set(gca, 'YScale','log');
+    % % Decade range for this N
+    % all_pos = [compute_series(:); pfg_data(:)];
+    % pos_vals = all_pos(all_pos > 0);
+    % if isempty(pos_vals)
+    %     kmin_this = -6; kmax_this = 0;
+    % else
+    %     kmin_this = floor(log10(min(pos_vals)));
+    %     kmax_this = ceil(log10(max(pos_vals)));
+    % end
 
-    % Plot compute series (clamp non-positive to floor for log visibility)
-    cs_plot = compute_series;
-    cs_plot(~isfinite(cs_plot) | cs_plot <= 0) = 10^kmin;
-    plot(t_ctrl, cs_plot, Color=color, LineWidth=line_width, DisplayName=displayNameStr);
+    % % First call sets limits; subsequent calls only expand
+    % if is_first
+    %     kmin = kmin_this;
+    %     kmax = kmax_this;
+    % else
+    %     cur_ylim = ylim;
+    %     kmin_prev = floor(log10(cur_ylim(1)));
+    %     kmax_prev = round(log10(cur_ylim(2) / 3.0));
+    %     kmin = min(kmin_prev, kmin_this);
+    %     kmax = max(kmax_prev, kmax_this);
+    % end
+    % if (kmax - kmin) < 3
+    %     kmin = kmax - 3;
+    % end
 
+    % % Ticks at every decade; labels only for >= 10^{-3}
+    % tick_exps = kmin:kmax;
+    % yticks(10.^tick_exps);
+    % tick_labels = cell(size(tick_exps));
+    % for ti = 1:numel(tick_exps)
+    %     if tick_exps(ti) >= -3
+    %         tick_labels{ti} = sprintf('10^{%d}', tick_exps(ti));
+    %     else
+    %         tick_labels{ti} = '';
+    %     end
+    % end
+    % yticklabels(tick_labels);
+    % ylim([10^kmin, 10^kmax * 3.0]);
+
+    % % Plot compute series (clamp non-positive to floor for log visibility)
+    % cs_plot = compute_series;
+    % cs_plot(~isfinite(cs_plot) | cs_plot <= 0) = 10^kmin;
+    % plot(t_ctrl, cs_plot, Color=color, LineWidth=line_width, DisplayName=displayNameStr);
+
+    %% Plot PathFG
     if N <= pathFG_max_N
         pfg_plot = pfg_data;
         pfg_plot(1) = pfg_plot(2);  % remove first-sample spike (MATLAB artifact)
-        pfg_plot(~isfinite(pfg_plot) | pfg_plot <= 0) = 10^kmin;
         plot(t_ctrl, pfg_plot, Color=color, LineWidth=line_width, LineStyle=':', ...
              DisplayName=strcat('PathFG ($N{=}', num2str(N), '$)'));
     end

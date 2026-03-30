@@ -1,5 +1,5 @@
 % N = 5;
-N_list = [50, 5, 15]; % list of prediction horizons to compare
+N_list = [25, 5, 10]; % list of prediction horizons to compare
 dim = 2; % dimension, either 2 or 3
 n_x = 2; % number of states
 n_u = 2; % number of control inputs

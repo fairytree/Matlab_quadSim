@@ -11,9 +11,9 @@
 rect_obs = [
     2.0, 0.0, 4.0, 4.0;   % original large wall
     0.0, 1.0, 1.0, 2.0;   % original small block
-    % 1.0, 3.5, 2.5, 4.5;   % mid-left block
-    % 3.0, 5.0, 4.5, 6.0;   % upper-right block
-    % 0.5, 5.5, 1.5, 6.5;   % upper-left block
+    1.0, 3.5, 2.5, 4.5;   % mid-left block
+    3.0, 5.0, 4.5, 6.0;   % upper-right block
+    0.5, 5.5, 1.5, 6.5;   % upper-left block
 ];
 buffer = 0.1; % MPC safety margin
 rrt_safety_margin = 0.3;
