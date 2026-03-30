@@ -30,7 +30,6 @@ function [deci_vars,...
     thrust_min = agent_params.thrust_min;
     obs_p = obs_params.obs_p;
     obs_size = obs_params.obs_size;
-    rect_obs = obs_params.rectangular_obs;
     Q_R_P_weight_matrix = constr_mat.Q_R_P_weight_matrix;
     Aeq = constr_mat.Aeq;
     lb = constr_mat.lb;
@@ -40,10 +39,9 @@ function [deci_vars,...
     P = getSparseP(P);
     x_bar_v = [v(1:3); 0; 0; 0; 0; 0; v(4)];
     [~, obstacle_V_bar] = obstacleDSM(obs_p, 0, x_bar_v, P, obs_size, agent_size, 1);
-    [~, rect_obs_V_bar] = rectObstacleDSM(rect_obs, 0, x_bar_v, P, agent_size, 1);
     [~, thrust_V_bar] = thrustDSM(thrust_max, thrust_min, m, g, 0, x_bar_v, K, P, 1);
     [~, angular_rate_V_bar] = angularRateDSM(x_bar_v, 0, K, P, ub(size(ssmodel.A,1)+1:size(ssmodel.A,1)+size(ssmodel.B,2)), lb(size(ssmodel.A,1)+1:size(ssmodel.A,1)+size(ssmodel.B,2)));
-    V_bar = min([obstacle_V_bar,rect_obs_V_bar, thrust_V_bar, angular_rate_V_bar]);
+    V_bar = min([obstacle_V_bar, thrust_V_bar, angular_rate_V_bar]);
 
     % set initial guess
     initial_guess_X = POSS(prior_deci_vars,...
@@ -65,8 +63,7 @@ function [deci_vars,...
         size(ssmodel.A, 1), ...
         size(ssmodel.B, 2),...     
         safety_margin_universal, ...
-        initial_guess_X,...
-        rect_obs);
+        initial_guess_X);
 
     % set the equal constraints
     beq = getLinearEqualityConstraintsVector(N, Q, x0);
@@ -374,20 +371,16 @@ function [A, b] = getLinearInequalityConstraintsVector( ...
     n_x, ...
     n_u,...
     safety_margin_universal, ...
-    initial_guess_X,...
-    rect_obs)
+    initial_guess_X)
 
-    % nonlinear sphere obstacle constraints
+    % nonlinear inequality constraints
     N_o = numel(obs_size);
-    N_r = size(rect_obs, 1);  % number of rectangular obstacles
-    num_sphere_constraints = (N + 1) * N_o;
-    num_rect_constraints = (N + 1) * N_r;
-    num_of_constraints = num_sphere_constraints + num_rect_constraints;
+    num_of_constraints = (N + 1) * N_o;  % check all predicated states with all obstacles
     num_of_deci_vars = numel(initial_guess_X);
     A = zeros(num_of_constraints, num_of_deci_vars);
-    b = zeros(1, num_of_constraints);
+    b = num_of_constraints;
 
-    % linearize sphere obstacle constraints
+    % linearize obstacle constrarints
     for i = 0:N
         % position_start_idx and position_end_idx are used to locate
         % the position of the ith predicted state
@@ -400,51 +393,6 @@ function [A, b] = getLinearInequalityConstraintsVector( ...
             c = c / norm(c);
             A(N_o*i+j, (n_x+n_u)*i+1 : (n_x+n_u)*i+n_x) = c';
             b(1,N_o*i+j) = c(1:3,1)' * obs_p(:, j) - obs_size(1,j) - agent_size - safety_margin_universal;
-        end
-    end
-
-    % linearize rectangular prism obstacle constraints
-    for i = 0:N
-        position_start_idx = (n_x + n_u) * i + 1;
-        position_end_idx = (n_x + n_u) * i + 3;
-        pred_pos = initial_guess_X(position_start_idx:position_end_idx, 1);
-        
-        for j = 1:N_r
-            box_min = rect_obs(j, 1:3)';
-            box_max = rect_obs(j, 4:6)';
-            
-            % Inflate the box by agent_size + safety_margin_universal
-            inflated_min = box_min - (agent_size + safety_margin_universal);
-            inflated_max = box_max + (agent_size + safety_margin_universal);
-            
-            % Find the closest point on the inflated box to the predicted position
-            closest_pt = max(inflated_min, min(pred_pos, inflated_max));
-            
-            % Direction from closest point to predicted position
-            diff = pred_pos - closest_pt;
-            dist = norm(diff);
-            
-            if dist > 1e-8
-                % Normal case: predicted position is outside the inflated box
-                n_vec = diff / dist;
-            else
-                % Predicted position is inside the inflated box
-                % Push outward along the axis with the smallest penetration depth
-                penetration = min(pred_pos - inflated_min, inflated_max - pred_pos);
-                [~, min_axis] = min(penetration);
-                n_vec = zeros(3, 1);
-                if pred_pos(min_axis) - inflated_min(min_axis) < inflated_max(min_axis) - pred_pos(min_axis)
-                    n_vec(min_axis) = -1;  % push toward min side
-                else
-                    n_vec(min_axis) = 1;   % push toward max side
-                end
-            end
-            
-            % c = -[n_vec; 0;0;0;0;0;0] (9-dimensional, only position matters)
-            c = -[n_vec; zeros(n_x - 3, 1)];
-            constraint_idx = num_sphere_constraints + N_r * i + j;
-            A(constraint_idx, (n_x+n_u)*i+1 : (n_x+n_u)*i+n_x) = c';
-            b(1, constraint_idx) = c(1:3, 1)' * closest_pt;
         end
     end
 end

@@ -58,8 +58,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 1);
     hold on;
-    lgd = legend('Position',[0.74 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);
-    lgd.ItemTokenSize = [12, 10]; 
+    legend('Position',[0.76 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.9*font_size);
     % lgd.Orientation = 'horizontal';
     % convert s into a length
     length_from_start = zeros(1, numel(aux_ref_params.Data));
@@ -109,8 +108,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 2);
     hold on;
-    lgd = legend('Position', [0.56 0.71 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
-    lgd.ItemTokenSize = [12, 10]; 
+    legend('Position', [0.58 0.71 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
     yscale log;
     set(gca, 'YScale', 'log');  % Convert to log
     yticks([1e-3 1e-2 1e-1 1]);
@@ -131,8 +129,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 3);
     hold on;
-    lgd = legend('Position', [0.67 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
-    lgd.ItemTokenSize = [14, 10]; 
+    lgd = legend('Position', [0.65 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
     p_dot = sqrt(non_linear_full_states.Data(:, 4).^2 + non_linear_full_states.Data(:, 5).^2 + non_linear_full_states.Data(:, 6).^2);
     plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
     p_dot_max = sqrt(x_max(4)^2 + x_max(5)^2 + x_max(6)^2);
@@ -147,8 +144,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 4);
     hold on;
-    lgd = legend('Position', [0.67 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
-    lgd.ItemTokenSize = [14, 10]; 
+    lgd = legend('Position', [0.65 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
     ytickformat('%.1f');
     plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
     lgd.AutoUpdate = 'off';
@@ -162,8 +158,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 5);
     hold on;
-    lgd = legend('Position', [0.67 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
-    lgd.ItemTokenSize = [14, 10]; 
+    lgd = legend('Position', [0.65 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
     angular_speeds = sqrt(control_inputs.Data(2,:).^2 + control_inputs.Data(3,:).^2 + control_inputs.Data(4,:).^2);
     ytickformat('%.1f');
     plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));

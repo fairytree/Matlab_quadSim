@@ -44,8 +44,8 @@ obstacles = obstacles';
 obstacle_sizes = obstacle_sizes';
 
 %% Path Planner
-safety_margin_universal = 0.05;
-safety_margin_universal_multiple = [0.1]; % [0.1, 0.03, 0.005] Comment out if not for compare multiple paths
+safety_margin_universal = 0.02;
+safety_margin_universal_multiple = [0.1, 0.03, 0.005]; % [0.1, 0.03, 0.005] Comment out if not for compare multiple paths
 static_safety_margins = safety_margin_universal * ones(size(obstacle_sizes));
 safety_margins_RRT = static_safety_margins + agent_size;
 
@@ -175,7 +175,7 @@ sys = ss(A_continuous_outer, B_continuous_outer, C_outer, D_outer);
 
 %% Design MPC Controller
 prediction_horizons_MPC = [5];
-% prediction_horizons_MPC = [5, 15, 60];
+% prediction_horizons_MPC = [5, 15, 50];
 
 solver = 2; % read the NOTE in setMPCParameters file first
 
@@ -232,9 +232,8 @@ if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multipl
     % create figures
     global fig1;
     % format of Position: [left, bottom, width, height]
-    % fig1 = figure(Position=[0, 0, 800, 400], Name='DA FIGURE');
     fig1 = figure(Position=[0, 0, 800, 2400], Name='DA FIGURE');
-    
+
     % loop over all the path planners
     for path_planner_idx = 1:numel(path_planners)
         path_planner = path_planners(path_planner_idx);
@@ -295,7 +294,6 @@ if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multipl
                 prediction_horizon_MPC, ...
                 ans.MPC_iterations, ...
                 ans.aux_ref_params, ...
-                ans.MPC_x0, ...
                 path, ...
                 path_planner, ...
                 mass_true, ...
@@ -308,7 +306,6 @@ if isscalar(prediction_horizons_MPC) && isscalar(safety_margin_universal_multipl
                 goal,...
                 obstacles,...
                 obstacle_sizes,...
-                rect_obs,...
                 ans.non_linear_full_states,...
                 ans.reference_signal,...
                 agent_size, ...
@@ -326,7 +323,7 @@ elseif isscalar(safety_margin_universal_multiple)
 
     global fig1;
     % fig1 = figure(Position=[0, 0, 800, 2000], Name='DA FIGURE');
-    fig1 = figure('Position',[0, 0, 480, 800], 'Name','DA FIGURE');
+    fig1 = figure(Position=[0, 0, 480, 2200], Name='DA FIGURE');
 
     for prediction_horizon_idx = 1:numel(prediction_horizons_MPC)
         prediction_horizon_MPC = prediction_horizons_MPC(prediction_horizon_idx);
@@ -421,13 +418,10 @@ end
 % grid(ax1,'on'); 
 % axis(ax1,'equal');
 % xlim(ax1,[0 3]); ylim(ax1,[0 3]); zlim(ax1,[0 2]);
-% xlabel(ax1,'$x$ [m]', 'FontSize', 15); 
-% ylabel(ax1,'$y$ [m]', 'FontSize', 15);  
-% zlabel(ax1,'$z$ [m]', 'FontSize', 15); 
-% ax1.FontSize = 14;  % increases axis tick labels
+% xlabel(ax1,'$x$ [m]'); ylabel(ax1,'$y$ [m]'); zlabel(ax1,'$z$ [m]');
 % view(ax1, -7.573304666576624,19.585200472715634);
 % % campos(ax1, [-1.412012197832373,-20.40253712848401,8.86123732595924]);
-% % view(0,90); % first param is to rotate along z-axis.
+% % view(-90,90);
 % 
 % prediction_horizon_MPC = prediction_horizons_MPC(1);
 % 
@@ -440,10 +434,10 @@ end
 % clear ans;
 % sim("Sim_quadrotor.slx");
 % animateTrajectoryMultiSolver(...
-%     start, goal, obstacles, obstacle_sizes,rect_obs, ...
+%     start, goal, obstacles, obstacle_sizes, ...
 %     ans.non_linear_full_states, ans.reference_signal.Data, ...
 %     agent_size, sample_time_continous, sample_time_pathFG, ...
-%     ax1, 'b', 'g', 'Actual Traj. (RRT*+PathFG+MPC)', 'Aux. Ref. (RRT*+PathFG+MPC)');  % 'b'=trajectory color, 'r'=reference color
+%     ax1, 'b', 'g', 'Actual Traj. (PathFG with RRT*)', 'Aux. Ref. (PathFG with RRT*)');  % 'b'=trajectory color, 'r'=reference color
 % 
 % 
 % % ---------------- 2rd Simulation ----------------
@@ -455,10 +449,10 @@ end
 % clear ans;
 % sim("Sim_quadrotor.slx");
 % animateTrajectoryMultiSolver(...
-%     start, goal, obstacles, obstacle_sizes, rect_obs,...
+%     start, goal, obstacles, obstacle_sizes, ...
 %     ans.non_linear_full_states, ans.reference_signal.Data, ...
 %     agent_size, sample_time_continous, sample_time_pathFG, ...
-%     ax1, [0.5 0.5 0.5], [1.0, 0.8, 0.0], 'Actual Traj. (Pot.Field+PathFG+MPC)', 'Aux. Ref. (Pot.Field+PathFG+MPC)');  % 'g'=trajectory color, 'm'=reference color
+%     ax1, [0.5 0.5 0.5], [1.0, 0.8, 0.0], 'Actual Traj. (PathFG with Pot. Field)', 'Aux. Ref. (PathFG with Pot. Field)');  % 'g'=trajectory color, 'm'=reference color
 % 
 % 
 % % ---------------- 3rd Simulation ----------------
@@ -472,7 +466,7 @@ end
 % temp = squeeze(ans.artificial_reference.Data);  
 % artificial_reference_fixed = temp.';
 % animateTrajectoryMultiSolver(...
-%     start, goal, obstacles, obstacle_sizes, rect_obs,...
+%     start, goal, obstacles, obstacle_sizes, ...
 %     ans.non_linear_full_states, artificial_reference_fixed, ...
 %     agent_size, sample_time_continous, sample_time_pathFG, ...
 %     ax1, [0.776, 0.294, 0.549], 'm', 'Actual Traj. (MPCa)', 'Aux. Ref. (MPCa)');  % 'g'=trajectory color, 'm'=reference color
@@ -483,16 +477,14 @@ end
 % hLines = findobj(ax1, 'Type','line'); 
 % hLines = flip(hLines);  % now first plotted lines come first
 % [~, idx] = unique({hLines.DisplayName}, 'stable'); 
-% lgd = legend(ax1, hLines(idx), 'Position', [0.6 0.73 0.2 0.15]);  % top right
-% lgd.Box = 'off';  % removes the black box border
-% lgd.FontSize = 15;
-
-% %% Draw start and goal with legend
-% plot3(ax1, start(1), start(2), start(3), 'go', 'MarkerSize',10, 'DisplayName','Start');
-% plot3(ax1, goal(1), goal(2), goal(3), 'bo', 'MarkerSize',10, 'DisplayName','Goal');
-
-% exportgraphics(fig1, '3dTraj.pdf', 'ContentType', 'vector');
-exportgraphics(gcf, '3dTraj.png', 'Resolution', 600);  
+% legend(ax1, hLines(idx), 'Position', [0.6 0.73 0.2 0.15]);  % top right
+% 
+% % %% Draw start and goal with legend
+% % plot3(ax1, start(1), start(2), start(3), 'go', 'MarkerSize',10, 'DisplayName','Start');
+% % plot3(ax1, goal(1), goal(2), goal(3), 'bo', 'MarkerSize',10, 'DisplayName','Goal');
+% 
+% % exportgraphics(fig1, '3dTraj.pdf', 'ContentType', 'vector');
+% exportgraphics(gcf, '3dTraj.png', 'Resolution', 600);  
 
 
 disp("Simulation ended");

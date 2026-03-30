@@ -1,5 +1,5 @@
 function animateTrajectoryMultiSolver(...
-    start, goal, obstacles, obstacle_sizes, rect_obs, ...
+    start, goal, obstacles, obstacle_sizes, ...
     non_linear_full_states, reference_signal, ...
     agent_size, sample_time_continous, sample_time_pathFG, ...
     ax, trajColor, refColor, traj_legend_name, ref_legend_name)
@@ -57,28 +57,6 @@ function animateTrajectoryMultiSolver(...
         hold(ax,'on');
     end
 
-    % Plot rectangular prism obstacles (rainbow-by-Z, same as spheres)
-    if exist('rect_obs', 'var') && ~isempty(rect_obs)
-        n_subdiv = 20;
-        for k = 1:size(rect_obs, 1)
-            x1 = rect_obs(k, 1); y1 = rect_obs(k, 2); z1 = rect_obs(k, 3);
-            x2 = rect_obs(k, 4); y2 = rect_obs(k, 5); z2 = rect_obs(k, 6);
-            z_vec = linspace(z1, z2, n_subdiv)';
-            % Bottom face
-            surf([x1 x2; x1 x2], [y1 y1; y2 y2], [z1 z1; z1 z1], 'EdgeAlpha', 0);
-            % Top face
-            surf([x1 x2; x1 x2], [y1 y1; y2 y2], [z2 z2; z2 z2], 'EdgeAlpha', 0);
-            % Front face (y = y1)
-            surf(repmat([x1 x2], n_subdiv, 1), repmat([y1 y1], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
-            % Back face (y = y2)
-            surf(repmat([x1 x2], n_subdiv, 1), repmat([y2 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
-            % Left face (x = x1)
-            surf(repmat([x1 x1], n_subdiv, 1), repmat([y1 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
-            % Right face (x = x2)
-            surf(repmat([x2 x2], n_subdiv, 1), repmat([y1 y2], n_subdiv, 1), repmat(z_vec, 1, 2), 'EdgeAlpha', 0);
-        end
-    end
-    
     %% Drone parts
     drone(1) = patch(base(1,:), base(2,:), base(3,:), [0.9290 0.6940 0.1250], 'EdgeColor','none');
     drone(2) = patch(base(1,:), base(2,:), base(3,:)+H, [0.9290 0.6940 0.1250], 'EdgeColor','none');
@@ -123,30 +101,6 @@ function animateTrajectoryMultiSolver(...
             end
             if norm([x(i); y(i); z(i)] - obstacles(:,j)) <= agent_size + obstacle_sizes(j)
                 plot3(ax, x(i), y(i), z(i), 'ro','MarkerSize',20);
-            end
-        end
-
-        % box obstacle collision check for reference
-        if ~isempty(rect_obs)
-            ref_pt = [ref_x(i); ref_y(i); ref_z(i)];
-            for j = 1:size(rect_obs, 1)
-                box_min = rect_obs(j, 1:3)' - agent_size;
-                box_max = rect_obs(j, 4:6)' + agent_size;
-                if all(ref_pt >= box_min) && all(ref_pt <= box_max)
-                    plot3(ref_x(i), ref_y(i), ref_z(i), "ro", "MarkerSize", 20);
-                end
-            end
-        end
-
-        % box obstacle collision check for actual trajectory
-        if ~isempty(rect_obs)
-            traj_pt = [x(i); y(i); z(i)];
-            for j = 1:size(rect_obs, 1)
-                box_min = rect_obs(j, 1:3)' - agent_size;
-                box_max = rect_obs(j, 4:6)' + agent_size;
-                if all(traj_pt >= box_min) && all(traj_pt <= box_max)
-                    plot3(x(i), y(i), z(i), "ro", "MarkerSize", 20);
-                end
             end
         end
 
