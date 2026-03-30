@@ -1,4 +1,4 @@
-function [opt_input, term_pred_state] = MPC(curr_state, ref, params)
+function [opt_deci_var, opt_input, term_pred_state] = MPC(curr_state, ref, prev_deci_var, params)
 
     n_x = params.n_x;
     n_u = params.n_u;
@@ -12,7 +12,13 @@ function [opt_input, term_pred_state] = MPC(curr_state, ref, params)
     nonlin_constr_func = @(deci_var) getNonlinConstr(deci_var, curr_state, ref_state, params);
     lin_cost_mat = getLinCostMat(ref_state, params);
     cost_with_grad_func = @(deci_var) getCostWithGrad(deci_var, quad_cost_mat, lin_cost_mat);
-    init_guess = getInitGuess(curr_state, params);
+    
+    % only provide good init guess to ungoverned MPC
+    if(params.N > params.pathFG_max_N)
+        init_guess = getInitGuess(prev_deci_var, params);
+    else
+        init_guess = getInitGuess_2(curr_state, params);
+    end
 
     options = optimoptions(...
         'fmincon',...
@@ -21,7 +27,7 @@ function [opt_input, term_pred_state] = MPC(curr_state, ref, params)
         Display='off',...
         SpecifyObjectiveGradient=true...
     );
-    opt_deci_var = fmincon(...
+    [deci_var_raw, ~, ~, ~] = fmincon(...
         cost_with_grad_func,...
         init_guess,...
         A, b, A_eq, b_eq,...
@@ -29,8 +35,9 @@ function [opt_input, term_pred_state] = MPC(curr_state, ref, params)
         nonlin_constr_func,...
         options...
     );
-    term_pred_state = opt_deci_var(end-n_x+1:end);
-    opt_input = opt_deci_var(n_x+1:n_x+n_u);
+    term_pred_state = deci_var_raw(end-n_x+1:end);
+    opt_input = deci_var_raw(n_x+1:n_x+n_u);
+    opt_deci_var = deci_var_raw(1:size(prev_deci_var,1),1); % THIS TRICK IS REQUIRED FOR SIMULINK/MATLAB TO CORRECTLY DETERMINE MATRIX SIZE
 
 end
 
@@ -57,7 +64,6 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
     buffer = params.buffer;
     dim = params.dim;
     dt = params.dt;
-    lyapunov_thresh = params.lyapunov_thresh;
 
     n_o = size(rect_obs, 1);
     step_size = n_x + n_u;
@@ -114,7 +120,14 @@ function [nonlin_constr, nonlin_eq_constr] = getNonlinConstr(deci_var, curr_stat
 
 end
 
-function init_guess = getInitGuess(curr_state, params)
+function init_guess = getInitGuess(prev_deci_var, params)
+    n_x = params.n_x;
+    n_u = params.n_u;
+    prev_term_state = prev_deci_var(end-n_x+1:end);
+    init_guess = [prev_deci_var(n_x+n_u+1:end); zeros(n_u,1); prev_term_state];
+end
+
+function init_guess = getInitGuess_2(curr_state, params)
     N = params.N;
     n_u = params.n_u;
     repeated_part = [curr_state; zeros(n_u,1)];

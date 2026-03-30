@@ -54,8 +54,6 @@ for N_idx = 1:numel(N_list)
 
     % Re-pack params with the current N
     computeAndPack;
-    params.path      = path;
-    params.path_size = size_of_path;
 
     % Simulation
     disp("Simulink simulation started");

@@ -19,12 +19,15 @@ params = struct(...
     'DSM_max', DSM_max,...
     'pathFG_kappa', pathFG_kappa,...
     'pathFG_max_iters', pathFG_max_iters,...
-    'pathFG_max_N', pathFG_max_N...
+    'pathFG_max_N', pathFG_max_N,...
+    'path', path...
 );
+params.path_size = size(path, 1);
 params.deci_var_length = N * (n_x + n_u) + n_x;
 params.quad_cost_mat = getQuadCostMat(params);
 [params.lower_bound, params.upper_bound] = getDeciVarBounds(params);
 params.lyapunov_thresh = (input_max(2) / k)^2;
+params.first_init_guess = getFirstInitGuess(params);
 
 function [lower_bound, upper_bound] = getDeciVarBounds(params)
     N = params.N;
@@ -46,4 +49,31 @@ function quad_cost_mat = getQuadCostMat(params)
     stage_diag = [q*ones(n_x,1); r_weight*ones(n_u,1)];
     quad_cost_mat_diag = [repmat(stage_diag,N,1); ones(n_x,1)];
     quad_cost_mat = diag(quad_cost_mat_diag);
+end
+
+function first_init_guess = getFirstInitGuess(params)
+
+    n_x = params.n_x;
+    n_u = params.n_u;
+    dim = params.dim;
+    N = params.N;
+    pathFG_max_N = params.pathFG_max_N;
+    path = params.path;
+    path_size = params.path_size;
+    deci_var_length = params.deci_var_length;
+
+    first_init_guess = zeros(deci_var_length, 1);
+    s_list = linspace(1, path_size, N+1);
+    if N > pathFG_max_N
+        % fill MPC states using path waypoints
+        for i = 0:N
+            s = s_list(i+1);
+            ref = getRefFromPath(s, path);
+            start_idx = i * (n_x + n_u) + 1;
+            first_init_guess(start_idx:start_idx+dim-1) = ref;
+        end
+    else
+        first_init_guess = zeros(deci_var_length, 1);
+    end
+
 end
