@@ -88,14 +88,22 @@ function plotGraphMultiN( ...
     end
     ref_pct = 100 * ref_cum / max(ref_cum(end), eps);
 
+    % Build the N label: use N^* for ungoverned MPC
+    is_ungoverned = (N > pathFG_max_N);
+    if is_ungoverned
+        N_label = strcat('$N^*{=}', num2str(N), '$');
+    else
+        N_label = strcat('$N{=}', num2str(N), '$');
+    end
+
     if N >= pathFG_max_N
         ref_pct = 100 * ones(T,1);
     end
 
     plot(t_ctrl, ref_pct, Color=color, LineWidth=line_width, LineStyle=':', ...
-         DisplayName=strcat('$s$ ($N{=}',num2str(N),'$)'));
+         DisplayName=strcat('$s$ (', N_label, ')'));
     plot(t_ctrl, actual_pct, Color=color, LineWidth=line_width, ...
-         DisplayName=strcat('actual ($N{=}',num2str(N),'$)'));
+         DisplayName=strcat('actual (', N_label, ')'));
 
         hy = ylabel('Path [\%]', Interpreter='latex');
         hy.FontSize = round(1.1 * font_size); 
@@ -113,10 +121,10 @@ function plotGraphMultiN( ...
 
     if N > pathFG_max_N
         compute_series = mpc_data;
-        displayNameStr = strcat('Ungoverned MPC ($N{=}', num2str(N), '$)');
+        displayNameStr = strcat('Ungoverned MPC (', N_label, ')');
     else
         compute_series = pfg_data + mpc_data;
-        displayNameStr = strcat('PathFG+MPC ($N{=}', num2str(N), '$)');
+        displayNameStr = strcat('PathFG+MPC (', N_label, ')');
     end
 
 
@@ -177,7 +185,7 @@ function plotGraphMultiN( ...
         pfg_plot = pfg_data;
         pfg_plot(1) = pfg_plot(2);  % remove first-sample spike (MATLAB artifact)
         plot(t_ctrl, pfg_plot, Color=color, LineWidth=line_width, LineStyle=':', ...
-             DisplayName=strcat('PathFG ($N{=}', num2str(N), '$)'));
+             DisplayName=strcat('PathFG (', N_label, ')'));
     end
 
     hy = ylabel('Compute Time [s]', Interpreter='latex');

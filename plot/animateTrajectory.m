@@ -11,10 +11,7 @@
 %     buffer         scalar       safety buffer around each obstacle
 %     start          [2 × 1]     start position
 %     goal           [2 × 1]     goal  position
-%
-%   Style matches the quadrotor animateTrajectory (solid blue actual,
-%   red dotted reference, green/blue start/goal, large collision markers,
-%   detailed robot chassis drawn with hgtransform).
+
 
 function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs, buffer, start, goal, varargin)
     if ~isempty(varargin)
@@ -37,20 +34,24 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     if size(ref_data,1) ~= size(ref_sig_ts.Time,1)
         ref_data = ref_data';
     end
+    % Resample reference to the states time grid (ref may be at a slower rate)
+    if size(ref_data,1) ~= numel(t_vec)
+        ref_time = ref_sig_ts.Time(:)';
+        ref_data = interp1(ref_time, ref_data, t_vec', 'previous', 'extrap');
+    end
 
     T     = size(x_data, 1);
     n_obs = size(rect_obs, 1);
 
-    %% ---- tunables (match quadrotor style) ------------------------------
+    %% ---- tunables ----
     pause_time       = 0;              % 0 = max speed
     downsample_k     = 1;              % plot every k-th step  (1 = all)
     record_video     = false;
-    collision_marker = 20;             % large red circle (same as quadrotor)
-    line_width       = 3;              % thick lines (same as quadrotor)
+    collision_marker = 20;             % large red circle 
+    line_width       = 3;              % thick lines 
 
     %% ---- robot design parameters (differential-drive unicycle) ---------
     %  Two drive wheels on an axle + a small caster wheel in front.
-    %  Colours follow the quadrotor convention:
     %    mustard  [0.9290 0.6940 0.1250]  — chassis body
     %    sky blue [0.3010 0.7450 0.9330]  — wheels / accents
     col_body  = [0.9290 0.6940 0.1250];
@@ -68,7 +69,7 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     idx = 1:downsample_k:T;
     if idx(end) ~= T, idx(end+1) = T; end
 
-    %% ---- figure setup (match quadrotor: pos [0 50 1200 800]) -----------
+    %% ---- figure setup ----
     fig = figure('Name','Unicycle Animation','NumberTitle','off', ...
                  'pos', [0 50 1200 500]);
     ax = axes(fig); hold(ax,'on'); grid(ax,'on'); axis(ax,'equal');
@@ -96,13 +97,13 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
              'r--', 'LineWidth', 0.8, 'HandleVisibility','off');
     end
 
-    %% ---- start, goal, path (match quadrotor colours) -------------------
+    %% ---- start, goal, path ----
     plot(ax, start(1), start(2), 'go', 'MarkerSize',10, ...
          'MarkerFaceColor','g', 'HandleVisibility','off');
     plot(ax, goal(1),  goal(2),  'bo', 'MarkerSize',10, ...
          'MarkerFaceColor','b', 'HandleVisibility','off');
 
-    %% ---- build unicycle chassis using hgtransform (like quadrotor) -----
+    %% ---- build unicycle chassis using hgtransform ----
     %  All parts are drawn in the BODY frame (robot at origin, heading = +x)
     %  and moved each frame with a single hgtransform matrix.
     hg_robot = hgtransform('Parent', ax);
@@ -153,7 +154,7 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     %% ---- collision flag ------------------------------------------------
     collision_found = false;
 
-    %% ---- animation loop (segment-by-segment like quadrotor) ------------
+    %% ---- animation loop ----
     for frame = 1:numel(idx)
         i = idx(frame);
         last_i = idx(max(1, frame-1));
@@ -181,7 +182,7 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
 %             end
 %         end
 
-        % ---- grow actual trajectory (solid blue, thick — quadrotor style)
+        % ---- grow actual trajectory ----
         h2 = plot(ax, x_data(last_i:i, 1), x_data(last_i:i, 2), ...
                   'b-', 'LineWidth', line_width, ...
                   'DisplayName', 'Actual Trajectory');
@@ -202,7 +203,7 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
             end
         end
 
-        % ---- move unicycle chassis (hgtransform, like quadrotor) --------
+        % ---- move unicycle chassis ----
         heading = getHeading(x_data, u_data, i);
         T_mat = makehgtform('translate', [px py 0]) * ...
                 makehgtform('zrotate', heading);
@@ -223,13 +224,13 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
         disp("  No collisions detected.");
     end
 
-    %% ---- legend (once, after animation, quadrotor style) ---------------
+    %% ---- legend (once, after animation) ----
     hLines = findobj(ax, 'Type','line');
     hLines = flip(hLines);
     [~, ui] = unique({hLines.DisplayName}, 'stable');
     lgd = legend(ax, hLines(ui), 'Position', [0.6 0.73 0.2 0.15]);
     lgd.Box = 'off';
-    lgd.FontSize = 15;
+    lgd.FontSize = 12;
 
     exportgraphics(fig, '2dTraj.pdf', 'ContentType','vector');
 

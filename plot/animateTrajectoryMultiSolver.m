@@ -1,7 +1,7 @@
 function animateTrajectoryMultiSolver(...
     start, goal, rect_obs, ...
     states_ts, ref_data_raw, ...
-    buffer, ...
+    buffer, is_ungoverned, ...
     ax, trajColor, refColor, traj_legend_name, ref_legend_name)
 % animateTrajectoryMultiSolver  Overlay one solver's trajectory on an
 %   existing 2-D axes (unicycle version of the quadrotor helper).
@@ -12,6 +12,7 @@ function animateTrajectoryMultiSolver(...
 %     states_ts         timeseries   actual states  [T × n_x]
 %     ref_data_raw      [T × n_x] or timeseries   reference signal
 %     buffer            scalar       safety buffer around obstacles
+%     is_ungoverned     logical      true → skip reference line plotting
 %     ax                axes handle  target axes (shared across calls)
 %     trajColor         color spec   actual trajectory colour
 %     refColor          color spec   reference trajectory colour
@@ -39,12 +40,20 @@ function animateTrajectoryMultiSolver(...
         if size(ref_data,1) ~= numel(ref_data_raw.Time)
             ref_data = ref_data';
         end
+        ref_time = ref_data_raw.Time(:)';
     else
         ref_data = ref_data_raw;
+        ref_time = [];
     end
 
     T     = size(x_data, 1);
     n_obs = size(rect_obs, 1);
+
+    % Resample reference to the states time grid (ref may run at slower rate)
+    states_time = states_ts.Time(:)';
+    if ~isempty(ref_time) && size(ref_data,1) ~= T
+        ref_data = interp1(ref_time, ref_data, states_time', 'previous', 'extrap');
+    end
 
     %% ---- robot design (differential-drive, same as animateTrajectory) --
     col_body  = [0.9290 0.6940 0.1250];
@@ -89,13 +98,22 @@ function animateTrajectoryMultiSolver(...
     for i = 1:T
         last_i = max(1, i-1);
 
-        % reference (commented out — uncomment to restore)
-%         if i <= size(ref_data,1)
-%             plot(ax, ref_data(last_i:i, 1), ref_data(last_i:i, 2), ...
-%                  ':', 'LineWidth', line_width, 'Color', refColor, ...
-%                  'DisplayName', ref_legend_name);
-%         end
+        % reference line (skip for ungoverned MPC — its ref is always 100%)
+        if ~is_ungoverned && i <= size(ref_data,1)
+            plot(ax, ref_data(last_i:i, 1), ref_data(last_i:i, 2), ...
+                    ':', 'LineWidth', 0.7*line_width, 'Color', refColor, ...
+                    'DisplayName', ref_legend_name);
+        end
 
+        % collision markers (reference)
+        if ~is_ungoverned && i <= size(ref_data,1)
+            for j = 1:n_obs
+                if pointInBox([ref_data(i,1); ref_data(i,2)], rect_obs(j,:), buffer)
+                    plot(ax, ref_data(i,1), ref_data(i,2), 'ro', ...
+                            'MarkerSize', collision_marker, 'HandleVisibility','off');
+                end
+            end
+        end
         % actual trajectory (solid, caller-chosen colour)
         plot(ax, x_data(last_i:i, 1), x_data(last_i:i, 2), ...
              '-', 'LineWidth', line_width, 'Color', trajColor, ...
@@ -108,15 +126,6 @@ function animateTrajectoryMultiSolver(...
                      'MarkerSize', collision_marker, 'HandleVisibility','off');
             end
         end
-        % collision markers (reference — commented out with ref lines)
-%         if i <= size(ref_data,1)
-%             for j = 1:n_obs
-%                 if pointInBox([ref_data(i,1); ref_data(i,2)], rect_obs(j,:), buffer)
-%                     plot(ax, ref_data(i,1), ref_data(i,2), 'ro', ...
-%                          'MarkerSize', collision_marker, 'HandleVisibility','off');
-%                 end
-%             end
-%         end
 
         % move robot
         heading = getHeading2D(x_data, i);
