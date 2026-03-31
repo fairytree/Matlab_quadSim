@@ -19,7 +19,8 @@ function plotGraphMultiN( ...
     mass, ...
     g, ...
     PathFG_max_N, ...
-    sim_length)
+    sim_length,...
+    prediction_horizon_idx)
 
     global fig1;
 
@@ -59,6 +60,7 @@ function plotGraphMultiN( ...
     ax = subplot(fig5_rows, fig5_cols, 1);
     hold on;
     lgd = legend('Position',[0.74 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);
+    % lgd = legend('Position',[0.74 0.837 0.1 0.05], NumColumns=2, Orientation='horizontal',Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);   
     lgd.ItemTokenSize = [12, 10]; 
     % lgd.Orientation = 'horizontal';
     % convert s into a length
@@ -109,7 +111,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 2);
     hold on;
-    lgd = legend('Position', [0.56 0.71 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
+    lgd = legend('Position', [0.56 0.715 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
     lgd.ItemTokenSize = [12, 10]; 
     yscale log;
     set(gca, 'YScale', 'log');  % Convert to log
@@ -118,6 +120,8 @@ function plotGraphMultiN( ...
 
     if N > PathFG_max_N
         plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('Ungoverned MPC ($N{=}',num2str(N),'$)'));
+    elseif prediction_horizon_idx == 4
+        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('MPCa ($N{=}',num2str(N),'$)'));
     else
         plot(PathFG_time.Time, PathFG_time.Data + MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('PathFG+MPC ($N{=}',num2str(N),'$)'));
         plot(PathFG_time.Time, PathFG_time.Data, Color=color, LineWidth=line_width, LineStyle=':', DisplayName=strcat('PathFG ($N{=}',num2str(N),'$)'));

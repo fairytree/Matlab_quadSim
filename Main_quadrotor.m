@@ -174,10 +174,10 @@ sys = ss(A_continuous_outer, B_continuous_outer, C_outer, D_outer);
 
 
 %% Design MPC Controller
-prediction_horizons_MPC = [5];
-% prediction_horizons_MPC = [5, 15, 60];
+prediction_horizons_MPC = [15];
+% prediction_horizons_MPC = [5, 15, 60, 15];
 
-solver = 2; % read the NOTE in setMPCParameters file first
+solver = 5; % read the NOTE in setMPCParameters file first
 
 MPC_max_iters = 200; % optimization parameter
 
@@ -328,10 +328,13 @@ elseif isscalar(safety_margin_universal_multiple)
     % fig1 = figure(Position=[0, 0, 800, 2000], Name='DA FIGURE');
     fig1 = figure('Position',[0, 0, 480, 800], 'Name','DA FIGURE');
 
-    for prediction_horizon_idx = 1:numel(prediction_horizons_MPC)
+    for prediction_horizon_idx = 1:numel(prediction_horizons_MPC)  
+        if prediction_horizon_idx == 4   % MPCa
+            solver = 5;
+        else
+            solver = 2;
+        end       
         prediction_horizon_MPC = prediction_horizons_MPC(prediction_horizon_idx);
-
-        % Set MPC Parameters
         setMPCParameters;
         setStructs;
 

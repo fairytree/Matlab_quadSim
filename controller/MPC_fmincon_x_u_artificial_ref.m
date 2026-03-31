@@ -1,6 +1,4 @@
 
-%% NOTE: box obstacles not considered
-
 function [deci_vars,...
     predicted_states_Nth_step,...
     desired_additional_thrust_and_body_rates,...
@@ -35,6 +33,7 @@ function [deci_vars,...
     obs_p = obs_params.obs_p;
     obs_size = obs_params.obs_size;
     N_o = numel(obs_size);
+    rect_obs = obs_params.rectangular_obs;
     Q_R_P_weight_matrix = constr_mat.Q_R_P_weight_matrix;
     Aeq = constr_mat.Aeq;
     lb = constr_mat.lb;
@@ -51,21 +50,17 @@ function [deci_vars,...
     % set initial guess
     initial_guess_X = prior_deci_vars;
    
-    % % set the inequal constraints
-    % A = [];
-    % b = [];
-
-    % % set the inequal constraints
-    % [A, b] = getLinearInequalityConstraintsVector( ...
-    %     obs_p,...
-    %     obs_size,...
-    %     agent_size,...
-    %     N,...
-    %     size(ssmodel.A, 1), ...
-    %     size(ssmodel.B, 2),...     
-    %     safety_margin_universal, ...
-    %     initial_guess_X, ...
-    %     N_o);
+    % set the inequality constraints (linearized at previous solution)
+    [A, b] = getLinearInequalityConstraintsVector( ...
+        obs_p,...
+        obs_size,...
+        agent_size,...
+        N,...
+        size(ssmodel.A, 1), ...
+        size(ssmodel.B, 2),...     
+        safety_margin_universal, ...
+        initial_guess_X, ...
+        rect_obs);
 
     % set the equal constraints
     beq = getLinearEqualityConstraintsVector(N, Q, x0);
@@ -105,7 +100,7 @@ function [deci_vars,...
     %     getSparseMatrices(Aeq, beq, Q_P_Xref_vector, Q_R_P_weight_matrix);
 
     % get cost function with gradient
-    cost_func = @(X) getCostFunction(X, N, Q, R, P, v, obs_p, obs_size, N_o, agent_size);
+    cost_func = @(X) getCostFunction(X, N, Q, R, P, v, obs_p, obs_size, N_o, agent_size, rect_obs, safety_margin_universal);
   
     % Call fmincon to perform the optimization with options (interior-point
     % or sqp) (options: SubproblemAlgorithm="cg", EnableFeasibilityMode=true)
@@ -115,7 +110,7 @@ function [deci_vars,...
         SpecifyObjectiveGradient=false,...
         SpecifyConstraintGradient=false,...
         Display='notify-detailed'); % 'notify-detailed' displays output when fmincon doesn't converge
-    [X_opt, ~, exit_status, fmincon_output] = fmincon(cost_func, initial_guess_X, [], [], Aeq, beq, lb, ub, [], options);
+    [X_opt, ~, exit_status, fmincon_output] = fmincon(cost_func, initial_guess_X, A, b, Aeq, beq, lb, ub, [], options);
   
     % output
     desired_additional_thrust_and_body_rates = X_opt(10:13); 
@@ -222,7 +217,7 @@ end
 
 
 % get cost function
-function f = getCostFunction(X, N, Q, R, P, v, obs_p, obs_size, N_o, agent_size)
+function f = getCostFunction(X, N, Q, R, P, v, obs_p, obs_size, N_o, agent_size, rect_obs, safety_margin_universal)
 
     % Artificial reference
     x_ref = [X(end-2:end); zeros(6,1)]; % 9 states
@@ -255,7 +250,7 @@ function f = getCostFunction(X, N, Q, R, P, v, obs_p, obs_size, N_o, agent_size)
 
     % collision penalties for artificial reference
     mu = 10^4; % tuning parameter, MPCa paper uses 10^4
-    rho = agent_size + 0.2;   % tuning parameter, MPCa paper uses 2
+    rho = agent_size + safety_margin_universal + 0.05;   % tuning parameter, MPCa paper uses 2
 
     for j = 1 : N_o
         diff = X(end-2:end) - obs_p(:,j);
@@ -419,27 +414,124 @@ function [A, b] = getLinearInequalityConstraintsVector( ...
     n_u,...
     safety_margin_universal, ...
     initial_guess_X, ...
-    N_o)
+    rect_obs)
 
-    % nonlinear inequality constraints
-    num_of_constraints = (N + 1) * N_o;  % check all predicated states with all obstacles
+    N_o = numel(obs_size);
+    N_r = size(rect_obs, 1);
     num_of_deci_vars = numel(initial_guess_X);
+
+    % Constraints for predicted states (steps 0..N):
+    %   sphere: (N+1)*N_o,   box: (N+1)*N_r
+    % Constraints for artificial reference (last 3 deci vars):
+    %   sphere: N_o,          box: N_r
+    num_pred_sphere  = (N + 1) * N_o;
+    num_pred_rect    = (N + 1) * N_r;
+    num_aref_sphere  = N_o;
+    num_aref_rect    = N_r;
+    num_of_constraints = num_pred_sphere + num_pred_rect ...
+                       + num_aref_sphere + num_aref_rect;
+
     A = zeros(num_of_constraints, num_of_deci_vars);
-    b = num_of_constraints;
+    b = zeros(1, num_of_constraints);
+    row = 0;
+    
+    % %  (A) linearize sphere obstacle constraints
+    % for i = 0:N
+    %     % position_start_idx and position_end_idx are used to locate
+    %     % the position of the ith predicted state
+    %     position_start_idx = (n_x + n_u) * i + 1;
+    %     position_end_idx = (n_x + n_u) * i + 3;
 
-    % linearize obstacle constrarints
-    for i = 0:N
-        % position_start_idx and position_end_idx are used to locate
-        % the position of the ith predicted state
-        position_start_idx = (n_x + n_u) * i + 1;
-        position_end_idx = (n_x + n_u) * i + 3;
+    %     for j = 1:N_o
+    %         row = row + 1;
+    %         % c(\xi_{i|k-1}) * x < d(\xi_{i|k-1}), note that x here is 9 states         
+    %         c = -[(initial_guess_X(position_start_idx:position_end_idx,1) - obs_p(:, j)); zeros(n_x - 3, 1)];
+    %         c = c / norm(c);
+    %         A(row, (n_x+n_u)*i+1 : (n_x+n_u)*i+n_x) = c';
+    %         b(1,row) = c(1:3,1)' * obs_p(:, j) - obs_size(1,j) - agent_size - safety_margin_universal;
+    %     end
+    % end
 
-        for j = 1:N_o
-            % c(\xi_{i|k-1}) * x < d(\xi_{i|k-1}), note that x here is 9 states         
-            c = -[(initial_guess_X(position_start_idx:position_end_idx,1) - obs_p(:, j)); [0; 0; 0; 0; 0; 0]];
-            c = c / norm(c);
-            A(N_o*i+j, (n_x+n_u)*i+1 : (n_x+n_u)*i+n_x) = c';
-            b(1,N_o*i+j) = c(1:3,1)' * obs_p(:, j) - obs_size(1,j) - agent_size - safety_margin_universal;
-        end
-    end
+    % % --- (B) Linearized box constraints for predicted states --------------
+    % for i = 0:N
+    %     position_start_idx = (n_x + n_u) * i + 1;
+    %     position_end_idx   = (n_x + n_u) * i + 3;
+    %     pred_pos  = initial_guess_X(position_start_idx:position_end_idx, 1);
+
+    %     for j = 1:N_r
+    %         row = row + 1;
+    %         box_min = rect_obs(j, 1:3)';
+    %         box_max = rect_obs(j, 4:6)';
+
+    %         inflated_min = box_min - (agent_size + safety_margin_universal);
+    %         inflated_max = box_max + (agent_size + safety_margin_universal);
+
+    %         closest_pt = max(inflated_min, min(pred_pos, inflated_max));
+    %         diff = pred_pos - closest_pt;
+    %         dist = norm(diff);
+
+    %         if dist > 1e-8
+    %             n_vec = diff / dist;
+    %         else
+    %             % penetration = min(pred_pos - inflated_min, inflated_max - pred_pos);
+    %             % [~, min_axis] = min(penetration);
+    %             % n_vec = zeros(3, 1);
+    %             % if pred_pos(min_axis) - inflated_min(min_axis) < inflated_max(min_axis) - pred_pos(min_axis)
+    %             %     n_vec(min_axis) = -1;
+    %             % else
+    %             %     n_vec(min_axis) = 1;
+    %             % end
+    %         end
+
+    %         c = -[n_vec; zeros(n_x - 3, 1)];
+    %         A(row, (n_x+n_u)*i+1 : (n_x+n_u)*i+n_x) = c';
+    %         b(1,row) = c(1:3, 1)' * closest_pt;
+    %     end
+    % end
+
+    % % --- (C) Linearized sphere constraints for artificial reference -------
+    % %   The artificial reference occupies X(end-2:end), i.e. the last 3
+    % %   columns of the A matrix.
+    % aref_pos = initial_guess_X(end-2:end, 1);
+    % aref_col_start = num_of_deci_vars - 2;  % index of first artif-ref element
+
+    % for j = 1:N_o
+    %     row = row + 1;
+    %     c3 = -(aref_pos - obs_p(:, j));
+    %     c3 = c3 / norm(c3);
+    %     A(row, aref_col_start : aref_col_start+2) = c3';
+    %     b(1, row) = c3' * obs_p(:, j) ...
+    %                 - obs_size(1,j) - agent_size - safety_margin_universal;
+    % end
+
+    % % --- (D) Linearized box constraints for artificial reference ----------
+    % for j = 1:N_r
+    %     row = row + 1;
+    %     box_min = rect_obs(j, 1:3)';
+    %     box_max = rect_obs(j, 4:6)';
+
+    %     inflated_min = box_min - (agent_size + safety_margin_universal);
+    %     inflated_max = box_max + (agent_size + safety_margin_universal);
+
+    %     closest_pt = max(inflated_min, min(aref_pos, inflated_max));
+    %     diff = aref_pos - closest_pt;
+    %     dist = norm(diff);
+
+    %     if dist > 1e-8
+    %         n_vec = diff / dist;
+    %     else
+    %         penetration = min(aref_pos - inflated_min, inflated_max - aref_pos);
+    %         [~, min_axis] = min(penetration);
+    %         n_vec = zeros(3, 1);
+    %         if aref_pos(min_axis) - inflated_min(min_axis) < inflated_max(min_axis) - aref_pos(min_axis)
+    %             n_vec(min_axis) = -1;
+    %         else
+    %             n_vec(min_axis) = 1;
+    %         end
+    %     end
+
+    %     c3 = -n_vec;
+    %     A(row, aref_col_start : aref_col_start+2) = c3';
+    %     b(1, row) = c3' * closest_pt;
+    % end
 end

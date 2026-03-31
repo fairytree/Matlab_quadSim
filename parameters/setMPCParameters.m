@@ -25,9 +25,9 @@ if(solver == 1 || solver == 2 || solver == 4)
     auxi_ref_list = linspace(1, size(path, 1), prediction_horizon_MPC + 1);
     disp("auxi_ref_list");
     disp(auxi_ref_list);
+    % provide partial path to ungoverned MPC to speed up optimization, otherwise it will always fail.
     if(prediction_horizon_MPC > PathFG_max_N)
-        % Fill MPC states using path waypoints
-        for k = 1:prediction_horizon_MPC
+        for k = 1:prediction_horizon_MPC  % full path should be "for k=1:(prediction_horizon_MPC+1)"
             auxi_ref = auxi_ref_list(k);                     % percentage along path
             p = getVPosition(auxi_ref, path);           % [x; y; z]
             idx = (k-1)*13 + 1;                  % state block start
@@ -44,6 +44,28 @@ elseif(solver == 5)
     decision_variables_init = repmat([x_init; u_init], prediction_horizon_MPC, 1);
     decision_variables_init = [decision_variables_init; x_init; x_init(1:3)]; % Add artificial reference (x, y, z).
     PathFG_max_N = 0;
+
+    auxi_ref_list = linspace(1, size(path, 1), prediction_horizon_MPC + 1);
+    disp("auxi_ref_list");
+    disp(auxi_ref_list);
+    % Fill MPC states using path waypoints
+    for k = 1:(prediction_horizon_MPC+1)
+        auxi_ref = auxi_ref_list(k);                     % percentage along path
+        p = getVPosition(auxi_ref, path);           % [x; y; z]
+        idx = (k-1)*13 + 1;                  % state block start
+        decision_variables_init(idx:idx+2) = p(1:3);
+    end   
+
+    % Decompose box obstacles into covering spheres and append to the
+    % sphere obstacle arrays so that the existing sphere-based penalty
+    % function can handle box avoidance as well.
+    max_sphere_radius = 0.25;  % controls sphere density (smaller = denser)
+    [box_centers, box_radii] = rectObsToSpheres(rect_obs, max_sphere_radius);
+    % NOTE: by this point Main_quadrotor has transposed obstacles to [3 × N],
+    % and obstacle_sizes to [1 × N], so append as columns / along row.
+    obstacles      = [obstacles,      box_centers'];
+    obstacle_sizes = [obstacle_sizes, box_radii'];
+
 end
 
 
