@@ -20,7 +20,7 @@ optimize_after = true;
 goal_frequency_rrt = 0.5;
 max_iterations_rrt = 3000;
 step_size_rrt = 0.1;
-threshold_rrt = 0.1;
+threshold_rrt = 0.01;
 rrt_star_inclusion = true;
 max_distance_rrt_star = 1;
 

@@ -12,14 +12,9 @@
 %     start          [2 × 1]     start position
 %     goal           [2 × 1]     goal  position
 %
-%   The animation draws:
-%     – grey-filled obstacles and red-dashed buffer regions
-%     – RRT* path, start & goal markers
-%     – actual trajectory (blue) growing each frame
-%     – auxiliary reference trajectory (magenta dashed) growing each frame
-%     – a unicycle triangle marker at the current position & heading
-%     – RED CIRCLE markers at any frame where the actual position
-%       lies inside an inflated obstacle (collision)
+%   Style matches the quadrotor animateTrajectory (solid blue actual,
+%   red dotted reference, green/blue start/goal, large collision markers,
+%   detailed robot chassis drawn with hgtransform).
 
 function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs, buffer, start, goal, varargin)
     if ~isempty(varargin)
@@ -34,12 +29,10 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     if size(x_data,1) ~= numel(t_vec)
         x_data = x_data';                   % ensure [T × n_x]
     end
-    % steering angle from ctrl_inputs (col 1) used for heading
     u_data = squeeze(ctrl_inputs_ts.Data);
     if size(u_data,1) ~= size(ctrl_inputs_ts.Time,1)
         u_data = u_data';
     end
-    % auxiliary reference from PathFG
     ref_data = squeeze(ref_sig_ts.Data);
     if size(ref_data,1) ~= size(ref_sig_ts.Time,1)
         ref_data = ref_data';
@@ -48,13 +41,26 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     T     = size(x_data, 1);
     n_obs = size(rect_obs, 1);
 
-    %% ---- tunables ------------------------------------------------------
-    pause_time    = 0.01;           % pause between frames (s), 0 = max speed
-    downsample_k  = 1;              % plot every k-th step  (1 = all)
-    record_video  = false;          % set true to write .avi
-    marker_size   = 15;             % size of collision marker
-    unicycle_len  = 0.15;           % half-length of the triangle marker
-    line_width    = 2;
+    %% ---- tunables (match quadrotor style) ------------------------------
+    pause_time       = 0;              % 0 = max speed
+    downsample_k     = 1;              % plot every k-th step  (1 = all)
+    record_video     = false;
+    collision_marker = 20;             % large red circle (same as quadrotor)
+    line_width       = 3;              % thick lines (same as quadrotor)
+
+    %% ---- robot design parameters (differential-drive unicycle) ---------
+    %  Two drive wheels on an axle + a small caster wheel in front.
+    %  Colours follow the quadrotor convention:
+    %    mustard  [0.9290 0.6940 0.1250]  — chassis body
+    %    sky blue [0.3010 0.7450 0.9330]  — wheels / accents
+    col_body  = [0.9290 0.6940 0.1250];
+    col_wheel = [0.3010 0.7450 0.9330];
+
+    body_L = 0.12;   % half-length of chassis rectangle
+    body_W = 0.06;   % half-width  of chassis rectangle
+    wh_L   = 0.04;   % wheel half-length (along axle direction → appears as height)
+    wh_W   = 0.015;  % wheel half-width  (tread thickness)
+    cast_r = 0.015;  % caster wheel radius
 
     set(groot, 'defaultTextInterpreter', 'latex');
 
@@ -62,47 +68,80 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     idx = 1:downsample_k:T;
     if idx(end) ~= T, idx(end+1) = T; end
 
-    %% ---- figure setup --------------------------------------------------
+    %% ---- figure setup (match quadrotor: pos [0 50 1200 800]) -----------
     fig = figure('Name','Unicycle Animation','NumberTitle','off', ...
-                 'Units','normalized','Position',[0.1 0.1 0.6 0.7]);
+                 'pos', [0 50 1200 500]);
     ax = axes(fig); hold(ax,'on'); grid(ax,'on'); axis(ax,'equal');
     xlabel(ax,'$x$ [m]'); ylabel(ax,'$y$ [m]');
-    title(ax, 'Unicycle Trajectory Animation', 'Interpreter','latex');
+    xlim([-2,10]);
+    ylim([-1,7]);
+    % title(ax, 'Unicycle Trajectory Animation', 'Interpreter','latex');
 
-    % --- static elements: obstacles, buffer, path, start/goal ------------
+    %% ---- static elements: obstacles ------------------------------------
+    %  Light blue fill, no edge lines.
+    obs_color = [0.85 0.92 1.0];   % very light blue (publication-friendly)
+
     for k = 1:n_obs
         x1 = rect_obs(k,1); y1 = rect_obs(k,2);
         x2 = rect_obs(k,3); y2 = rect_obs(k,4);
         fill(ax, [x1 x2 x2 x1], [y1 y1 y2 y2], ...
-             [0.85 0.85 0.85], 'EdgeColor','k', 'HandleVisibility','off');
+             obs_color, 'EdgeColor','none', ...
+             'HandleVisibility','off');
     end
+    % buffer outlines (red dashed)
     for k = 1:n_obs
         bx1 = rect_obs(k,1)-buffer; by1 = rect_obs(k,2)-buffer;
         bx2 = rect_obs(k,3)+buffer; by2 = rect_obs(k,4)+buffer;
         plot(ax, [bx1 bx2 bx2 bx1 bx1], [by1 by1 by2 by2 by1], ...
-             'r--', 'HandleVisibility','off');
+             'r--', 'LineWidth', 0.8, 'HandleVisibility','off');
     end
-    plot(ax, path(:,1), path(:,2), 'b--', 'LineWidth',1, 'DisplayName','RRT* Path');
-    plot(ax, start(1), start(2), 'go', 'MarkerSize',12, ...
-         'MarkerFaceColor','g', 'DisplayName','Start');
-    plot(ax, goal(1), goal(2), 'rp', 'MarkerSize',15, ...
-         'MarkerFaceColor','r', 'DisplayName','Goal');
 
-    % --- animated line objects -------------------------------------------
-    h_traj = animatedline(ax, 'Color','b', 'LineWidth',line_width, ...
-                          'DisplayName','Actual');
-    h_ref  = animatedline(ax, 'Color','m', 'LineStyle','--', 'LineWidth',line_width, ...
-                          'DisplayName','Aux. Ref.');
+    %% ---- start, goal, path (match quadrotor colours) -------------------
+    plot(ax, start(1), start(2), 'go', 'MarkerSize',10, ...
+         'MarkerFaceColor','g', 'HandleVisibility','off');
+    plot(ax, goal(1),  goal(2),  'bo', 'MarkerSize',10, ...
+         'MarkerFaceColor','b', 'HandleVisibility','off');
 
-    % unicycle marker (triangle pointing in heading direction)
-    h_body = fill(ax, nan, nan, [0.3 0.75 0.93], 'EdgeColor','k', ...
-                  'LineWidth',1.5, 'HandleVisibility','off');
+    %% ---- build unicycle chassis using hgtransform (like quadrotor) -----
+    %  All parts are drawn in the BODY frame (robot at origin, heading = +x)
+    %  and moved each frame with a single hgtransform matrix.
+    hg_robot = hgtransform('Parent', ax);
 
-    % time annotation
-    h_time = text(ax, 0.02, 0.03, '', 'Units','normalized', ...
-                  'FontSize',12, 'VerticalAlignment','bottom');
+    % chassis rectangle (mustard)
+    chassis_x = [-body_L, body_L, body_L, -body_L];
+    chassis_y = [-body_W, -body_W, body_W, body_W];
+    patch('XData', chassis_x, 'YData', chassis_y, ...
+          'FaceColor', col_body, 'EdgeColor', 'none', ...
+          'FaceAlpha', 0.9, 'Parent', hg_robot, 'HandleVisibility','off');
 
-    legend(ax, 'Location','best');
+    % heading arrow (thin dark line from centre to front)
+    plot(ax, [0 body_L*1.1], [0 0], 'k-', 'LineWidth', 1.5, ...
+         'Parent', hg_robot, 'HandleVisibility','off');
+
+    % left drive wheel (sky blue rectangle)
+    lw_x = [-wh_W, wh_W, wh_W, -wh_W];
+    lw_y = [body_W, body_W, body_W+wh_L, body_W+wh_L];
+    patch('XData', lw_x, 'YData', lw_y, ...
+          'FaceColor', col_wheel, 'EdgeColor', 'k', 'LineWidth', 1, ...
+          'Parent', hg_robot, 'HandleVisibility','off');
+
+    % right drive wheel (sky blue rectangle)
+    rw_y = [-body_W-wh_L, -body_W-wh_L, -body_W, -body_W];
+    patch('XData', lw_x, 'YData', rw_y, ...
+          'FaceColor', col_wheel, 'EdgeColor', 'k', 'LineWidth', 1, ...
+          'Parent', hg_robot, 'HandleVisibility','off');
+
+    % caster wheel (small filled circle at front)
+    th = linspace(0, 2*pi, 20);
+    patch('XData', body_L*0.7 + cast_r*cos(th), ...
+          'YData', cast_r*sin(th), ...
+          'FaceColor', [0.4 0.4 0.4], 'EdgeColor','k', 'LineWidth', 0.5, ...
+          'Parent', hg_robot, 'HandleVisibility','off');
+
+    % axle line (thin line connecting the two wheels)
+    plot(ax, [0 0], [-body_W-wh_L, body_W+wh_L], '-', ...
+         'Color', [0.3 0.3 0.3], 'LineWidth', 1, ...
+         'Parent', hg_robot, 'HandleVisibility','off');
 
     %% ---- video writer (optional) ----------------------------------------
     if record_video
@@ -114,37 +153,45 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     %% ---- collision flag ------------------------------------------------
     collision_found = false;
 
-    %% ---- animation loop ------------------------------------------------
+    %% ---- animation loop (segment-by-segment like quadrotor) ------------
     for frame = 1:numel(idx)
         i = idx(frame);
+        last_i = idx(max(1, frame-1));
 
         px = x_data(i, 1);
         py = x_data(i, 2);
 
-        % ---- grow trajectory lines --------------------------------------
-        addpoints(h_traj, px, py);
-        if i <= size(ref_data,1)
-            addpoints(h_ref, ref_data(i,1), ref_data(i,2));
-        end
+        % ---- grow reference line (commented out — uncomment to restore) --
+%         if i <= size(ref_data,1)
+%             ri = min(i, size(ref_data,1));
+%             rli = min(last_i, size(ref_data,1));
+%             h1 = plot(ax, ref_data(rli:ri, 1), ref_data(rli:ri, 2), ...
+%                       'r:', 'LineWidth', line_width, ...
+%                       'DisplayName', 'Auxiliary Reference');
+%         end
+%         % collision check on reference
+%         if i <= size(ref_data,1)
+%             ref_pt = [ref_data(i,1); ref_data(i,2)];
+%             for j = 1:n_obs
+%                 if pointInsideInflatedBox(ref_pt, rect_obs(j,:), buffer)
+%                     plot(ax, ref_pt(1), ref_pt(2), 'ro', ...
+%                          'MarkerSize', collision_marker, ...
+%                          'HandleVisibility','off');
+%                 end
+%             end
+%         end
 
-        % ---- unicycle triangle ------------------------------------------
-        %  heading from steering angle (ctrl_inputs col 1)
-        if i <= size(u_data,1)
-            heading = u_data(i, 1);
-        elseif i > 1
-            heading = atan2(x_data(i,2)-x_data(i-1,2), x_data(i,1)-x_data(i-1,1));
-        else
-            heading = 0;
-        end
-        tri = unicycleTriangle(px, py, heading, unicycle_len);
-        set(h_body, 'XData', tri(1,:), 'YData', tri(2,:));
+        % ---- grow actual trajectory (solid blue, thick — quadrotor style)
+        h2 = plot(ax, x_data(last_i:i, 1), x_data(last_i:i, 2), ...
+                  'b-', 'LineWidth', line_width, ...
+                  'DisplayName', 'Actual Trajectory');
 
-        % ---- collision check: actual trajectory -------------------------
+        % collision check on actual trajectory
         traj_pt = [px; py];
         for j = 1:n_obs
             if pointInsideInflatedBox(traj_pt, rect_obs(j,:), buffer)
                 plot(ax, px, py, 'ro', ...
-                     'MarkerSize', marker_size, 'LineWidth', 2, ...
+                     'MarkerSize', collision_marker, ...
                      'HandleVisibility','off');
                 if ~collision_found
                     fprintf("  *** COLLISION (actual) at t = %.2f s, " + ...
@@ -155,20 +202,11 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
             end
         end
 
-        % ---- collision check: auxiliary reference -----------------------
-        if i <= size(ref_data,1)
-            ref_pt = [ref_data(i,1); ref_data(i,2)];
-            for j = 1:n_obs
-                if pointInsideInflatedBox(ref_pt, rect_obs(j,:), buffer)
-                    plot(ax, ref_pt(1), ref_pt(2), 'ms', ...
-                         'MarkerSize', marker_size, 'LineWidth', 2, ...
-                         'HandleVisibility','off');
-                end
-            end
-        end
-
-        % ---- time stamp -------------------------------------------------
-        set(h_time, 'String', sprintf('$t = %.2f$ s', t_vec(i)));
+        % ---- move unicycle chassis (hgtransform, like quadrotor) --------
+        heading = getHeading(x_data, u_data, i);
+        T_mat = makehgtform('translate', [px py 0]) * ...
+                makehgtform('zrotate', heading);
+        set(hg_robot, 'Matrix', T_mat);
 
         % ---- draw & record ----------------------------------------------
         drawnow;
@@ -184,6 +222,16 @@ function animateTrajectory(states_ts, ctrl_inputs_ts, ref_sig_ts, path, rect_obs
     if ~collision_found
         disp("  No collisions detected.");
     end
+
+    %% ---- legend (once, after animation, quadrotor style) ---------------
+    hLines = findobj(ax, 'Type','line');
+    hLines = flip(hLines);
+    [~, ui] = unique({hLines.DisplayName}, 'stable');
+    lgd = legend(ax, hLines(ui), 'Position', [0.6 0.73 0.2 0.15]);
+    lgd.Box = 'off';
+    lgd.FontSize = 15;
+
+    exportgraphics(fig, '2dTraj.pdf', 'ContentType','vector');
 
     if ~isempty(out_filename)
         exportgraphics(fig, out_filename, 'ContentType','vector', 'BackgroundColor','none');
@@ -202,10 +250,16 @@ function inside = pointInsideInflatedBox(pt, obs_row, buf)
 end
 
 
-function tri = unicycleTriangle(cx, cy, theta, L)
-    pts_body = [ L,  -L/2,  -L/2;
-                 0,   L/2,  -L/2];
-    R = [cos(theta) -sin(theta);
-         sin(theta)  cos(theta)];
-    tri = R * pts_body + [cx; cy];
+function heading = getHeading(x_data, u_data, i)
+%getHeading  Extract or estimate unicycle heading at step i.
+    if size(x_data,2) >= 3
+        heading = x_data(i, 3);          % theta stored as state 3
+    elseif i <= size(u_data,1)
+        heading = u_data(i, 1);          % fallback: steering input
+    elseif i > 1
+        heading = atan2(x_data(i,2)-x_data(i-1,2), ...
+                        x_data(i,1)-x_data(i-1,1));
+    else
+        heading = 0;
+    end
 end

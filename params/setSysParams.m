@@ -1,5 +1,5 @@
 start = [0; 0];
-goal = [4; 7];
+goal = [5; 6];
 init_state = start;
 
 state_min = [-Inf; -Inf];
