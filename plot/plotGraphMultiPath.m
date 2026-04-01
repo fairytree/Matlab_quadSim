@@ -19,7 +19,8 @@ function plotGraphMultiN( ...
     mass, ...
     g, ...
     PathFG_max_N, ...
-    sim_length)
+    sim_length, ...
+    solver)
 
     global fig1;
 
@@ -61,23 +62,28 @@ function plotGraphMultiN( ...
     legend('Position',[0.7 0.84 0.1 0.05], Box = 'off', Orientation='horizontal',  NumColumns=1, BackgroundAlpha = 0, FontWeight = font_weight, FontSize=0.9*font_size);
     % lgd.Orientation = 'horizontal';
     % convert s into a length
-    length_from_start = zeros(1, numel(aux_ref_params.Data));
-    for s_idx = 1:numel(aux_ref_params.Data)
-        length_from_start(s_idx) = getLengthFromStart(aux_ref_params.Data(s_idx), path);
+    if solver == 5
+        % For solver 5, reference_signal already contains (x, y, z) positions
+        ref_positions = reference_signal.Data(:, 1:3);
+        length_from_start = getLengthFromStartXYZ(ref_positions);
+        ref_path_length = length_from_start(end);
+        path_percentage = 100 * length_from_start / ref_path_length;
+    else
+        length_from_start = zeros(1, numel(aux_ref_params.Data));
+        for s_idx = 1:numel(aux_ref_params.Data)
+            length_from_start(s_idx) = getLengthFromStart(aux_ref_params.Data(s_idx), path);
+        end
+        % total length of path
+        path_length = 0;
+        for node_idx = 1:size(path,1)-1
+            path_length = path_length + norm(path(node_idx+1,:) - path(node_idx,:));
+        end
+        path_percentage = 100 * length_from_start / path_length; % normalize and convert to percentage
     end
-    % total length of path
-    path_length = 0;
-    for node_idx = 1:size(path,1)-1
-        path_length = path_length + norm(path(node_idx+1,:) - path(node_idx,:));
-    end
-    path_percentage = 100 * length_from_start / path_length; % normalize and convert to percentage
     % get the path percentage of the actual state
     actual_path = MPC_x0.Data(1:3,:)'; % get the path p (the position) has taken
-    actual_length_from_start = zeros(1, size(actual_path, 1));
-    for p_idx = 1:size(actual_path, 1) % p stands for position
-        actual_length_from_start(p_idx) = getLengthFromStart(p_idx, actual_path);
-    end
-    actual_path_length = getLengthFromStart(size(actual_path, 1), actual_path); % length of the path taken by p
+    actual_length_from_start = getLengthFromStartXYZ(actual_path);
+    actual_path_length = actual_length_from_start(end); % length of the path taken by p
     actual_path_percentage = 100 * actual_length_from_start / actual_path_length; % convert to percentage
     % plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ (path margin{=}',num2str(Margin),')'));
     % plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$'));

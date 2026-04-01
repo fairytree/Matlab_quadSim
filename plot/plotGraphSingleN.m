@@ -17,7 +17,8 @@ function plotGraphSingleN(reference_signal,...
     u_min, ...
     u_max, ...
     x_min, ...
-    x_max)
+    x_max, ...
+    solver)
 
     global fig1;
 
@@ -90,17 +91,24 @@ function plotGraphSingleN(reference_signal,...
     yyaxis right;
     ax.YAxis(2).Color = 'black';
     % convert s into a length
-    length_from_start = zeros(1, numel(aux_ref_params.Data));
-    for s_idx = 1:numel(aux_ref_params.Data)
-        length_from_start(s_idx) = getLengthFromStart(aux_ref_params.Data(s_idx), path);
+    if solver == 5
+        % For solver 5, reference_signal already contains (x, y, z) positions
+        ref_positions = reference_signal.Data(:, 1:3);
+        length_from_start = getLengthFromStartXYZ(ref_positions);
+        ref_path_length = length_from_start(end);
+        path_percentage = 100 * length_from_start / ref_path_length;
+    else
+        length_from_start = zeros(1, numel(aux_ref_params.Data));
+        for s_idx = 1:numel(aux_ref_params.Data)
+            length_from_start(s_idx) = getLengthFromStart(aux_ref_params.Data(s_idx), path);
+        end
+        % total length of path
+        path_length = 0;
+        for node_idx = 1:size(path,1)-1
+            path_length = path_length + norm(path(node_idx+1,:) - path(node_idx,:));
+        end
+        path_percentage = 100 * length_from_start / path_length; % normalize and convert to percentage
     end
-    % total length of path
-    path_length = 0;
-    for node_idx = 1:size(path,1)-1
-        path_length = path_length + norm(path(node_idx+1,:) - path(node_idx,:));
-    end
-    % s = length_from_start / path_length; % normalize
-    path_percentage = 100 * length_from_start / path_length; % normalize and convert to percentage
     ytickformat('%.0f');
     axis = gca;
     ax.YAxis(2).FontSize = 1.0*font_size; % Y-axis tick labels only
@@ -121,7 +129,11 @@ function plotGraphSingleN(reference_signal,...
         'Color', 'black', ...
         'Interpreter', 'latex');
 
-    plot(aux_ref_params.Time, path_percentage, Color=colors(2), LineWidth=line_width, DisplayName=strcat('$s$'));
+    if solver == 5
+        plot(reference_signal.Time, path_percentage, Color=colors(2), LineWidth=line_width, DisplayName=strcat('$s$'));
+    else
+        plot(aux_ref_params.Time, path_percentage, Color=colors(2), LineWidth=line_width, DisplayName=strcat('$s$'));
+    end
     xlim([0, sim_length]);
     ylim([0, (1 + buffer) * 100]); % make the graph slightly higher so that the line is visible
 

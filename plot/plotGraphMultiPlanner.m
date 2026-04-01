@@ -15,7 +15,8 @@ function plotGraphMultiPlanner(reference_signal,...
     path, ...
     path_planner, ...
     mass, ...
-    g)
+    g, ...
+    solver)
 
     global fig1;
 
@@ -72,11 +73,8 @@ function plotGraphMultiPlanner(reference_signal,...
 
     % get the path percentage of the actual state
     actual_path = MPC_x0.Data(1:3,:)'; % get the path p (the position) has taken
-    actual_length_from_start = zeros(1, size(actual_path, 1));
-    for p_idx = 1:size(actual_path, 1) % p stands for position
-        actual_length_from_start(p_idx) = getLengthFromStart(p_idx, actual_path);
-    end
-    actual_path_length = getLengthFromStart(size(actual_path, 1), actual_path); % length of the path taken by p
+    actual_length_from_start = getLengthFromStartXYZ(actual_path);
+    actual_path_length = actual_length_from_start(end); % length of the path taken by p
     actual_path_percentage = 100 * actual_length_from_start / actual_path_length; % convert to percentage
   
     % length_from_start = zeros(1, numel(aux_ref_params.Data));
