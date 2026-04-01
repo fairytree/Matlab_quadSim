@@ -175,7 +175,7 @@ sys = ss(A_continuous_outer, B_continuous_outer, C_outer, D_outer);
 
 %% Design MPC Controller
 prediction_horizons_MPC = [5];
-% prediction_horizons_MPC = [5, 15, 15, 60]; % NOTE: the 3rd is set to use solver 5 (MPCa)
+% prediction_horizons_MPC = [5, 15, 15, 50]; % NOTE: the 3rd is set to use solver 5 (MPCa)
 
 solver = 2; % read the NOTE in setMPCParameters file first
 

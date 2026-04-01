@@ -118,7 +118,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 2);
     hold on;
-    lgd = legend('Position', [0.54 0.715 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
+    lgd = legend('Position', [0.54 0.72 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
     lgd.ItemTokenSize = [12, 10]; 
     yscale log;
     set(gca, 'YScale', 'log');  % Convert to log
