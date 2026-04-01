@@ -25,9 +25,9 @@ if(solver == 1 || solver == 2 || solver == 4)
     auxi_ref_list = linspace(1, size(path, 1), prediction_horizon_MPC + 1);
     disp("auxi_ref_list");
     disp(auxi_ref_list);
-    % provide partial path to ungoverned MPC to speed up optimization, otherwise it will always fail.
+    % provide path to ungoverned MPC as initial guess, otherwise it will always fail.
     if(prediction_horizon_MPC > PathFG_max_N)
-        for k = 1:prediction_horizon_MPC  % full path should be "for k=1:(prediction_horizon_MPC+1)"
+        for k = 1:(prediction_horizon_MPC+1)
             auxi_ref = auxi_ref_list(k);                     % percentage along path
             p = getVPosition(auxi_ref, path);           % [x; y; z]
             idx = (k-1)*13 + 1;                  % state block start

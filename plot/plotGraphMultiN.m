@@ -19,8 +19,7 @@ function plotGraphMultiN( ...
     mass, ...
     g, ...
     PathFG_max_N, ...
-    sim_length,...
-    prediction_horizon_idx)
+    sim_length)
 
     global fig1;
 
@@ -59,8 +58,8 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 1);
     hold on;
-    lgd = legend('Position',[0.74 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);
-    % lgd = legend('Position',[0.74 0.837 0.1 0.05], NumColumns=2, Orientation='horizontal',Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);   
+    % lgd = legend('Position',[0.74 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);
+    lgd = legend('Position',[0.67 0.837 0.1 0.05], NumColumns=2, Orientation='horizontal',Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);   
     lgd.ItemTokenSize = [12, 10]; 
     % lgd.Orientation = 'horizontal';
     % convert s into a length
@@ -82,8 +81,16 @@ function plotGraphMultiN( ...
     end
     actual_path_length = getLengthFromStart(size(actual_path, 1), actual_path); % length of the path taken by p
     actual_path_percentage = 100 * actual_length_from_start / actual_path_length; % convert to percentage
-    plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ ($N{=}',num2str(N),'$)'));
-    plot(MPC_x0.Time, actual_path_percentage, Color=color, LineWidth=line_width, DisplayName=strcat('actual ($N{=}',num2str(N),'$)'));
+
+    if N_idx == 3 || N > PathFG_max_N
+        plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ ($N^*{=}',num2str(N),'$)'));
+        plot(MPC_x0.Time, actual_path_percentage, Color=color, LineWidth=line_width, DisplayName=strcat('actual ($N^*{=}',num2str(N),'$)'));
+    else
+        plot(aux_ref_params.Time, path_percentage, Color=color, LineWidth=line_width, LineStyle=":", DisplayName=strcat('$s$ ($N{=}',num2str(N),'$)'));
+        plot(MPC_x0.Time, actual_path_percentage, Color=color, LineWidth=line_width, DisplayName=strcat('actual ($N{=}',num2str(N),'$)'));
+    end
+
+
     
     % Position the right Y lable at a customized position
     if N < 10  % only draw once
@@ -111,17 +118,17 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 2);
     hold on;
-    lgd = legend('Position', [0.56 0.715 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
+    lgd = legend('Position', [0.54 0.715 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
     lgd.ItemTokenSize = [12, 10]; 
     yscale log;
     set(gca, 'YScale', 'log');  % Convert to log
-    yticks([1e-3 1e-2 1e-1 1]);
+    yticks([1e-3 1e-2 1e-1 1e0]);
     yticklabels({'10^{-3}','10^{-2}','10^{-1}','10^{0}'});
-
-    if N > PathFG_max_N
-        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('Ungoverned MPC ($N{=}',num2str(N),'$)'));
-    elseif prediction_horizon_idx == 4
-        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('MPCa ($N{=}',num2str(N),'$)'));
+    % set(gca, 'TickLabelInterpreter', 'latex');
+    if N_idx == 3
+        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('MPCa ($N^*{=}',num2str(N),'$)'));
+    elseif N > PathFG_max_N
+        plot(PathFG_time.Time, MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('Ungoverned MPC ($N^*{=}',num2str(N),'$)'));
     else
         plot(PathFG_time.Time, PathFG_time.Data + MPC_time.Data, Color=color, LineWidth=line_width, DisplayName=strcat('PathFG+MPC ($N{=}',num2str(N),'$)'));
         plot(PathFG_time.Time, PathFG_time.Data, Color=color, LineWidth=line_width, LineStyle=':', DisplayName=strcat('PathFG ($N{=}',num2str(N),'$)'));
@@ -129,16 +136,21 @@ function plotGraphMultiN( ...
     % ylabel({'Compute', 'Time [s]'}, FontWeight=font_weight);
     ylabel('Compute Time [s]', FontWeight=font_weight);
     xlim([0, sim_length]);
+    ylim([0 1e2]); 
 
 
 
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 3);
     hold on;
-    lgd = legend('Position', [0.67 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
+    lgd = legend('Position', [0.60 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
     lgd.ItemTokenSize = [14, 10]; 
     p_dot = sqrt(non_linear_full_states.Data(:, 4).^2 + non_linear_full_states.Data(:, 5).^2 + non_linear_full_states.Data(:, 6).^2);
-    plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    if N_idx == 3 || N > PathFG_max_N
+        plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$N^*{=}',num2str(N),'$'));
+    else
+        plot(non_linear_full_states.Time, p_dot, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    end
     p_dot_max = sqrt(x_max(4)^2 + x_max(5)^2 + x_max(6)^2);
     lgd.AutoUpdate = 'off';
     yline(p_dot_max);
@@ -151,10 +163,14 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 4);
     hold on;
-    lgd = legend('Position', [0.67 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
+    lgd = legend('Position', [0.60 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
     lgd.ItemTokenSize = [14, 10]; 
     ytickformat('%.1f');
-    plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    if N_idx == 3 || N > PathFG_max_N
+        plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$N^*{=}',num2str(N),'$'));
+    else
+        plot(control_inputs.Time, control_inputs.Data(1,:) + mass * g, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    end
     lgd.AutoUpdate = 'off';
     yline(u_max(1) + mass * g);
     yline(u_min(1) + mass * g);
@@ -166,11 +182,16 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 5);
     hold on;
-    lgd = legend('Position', [0.67 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
+    lgd = legend('Position', [0.60 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
     lgd.ItemTokenSize = [14, 10]; 
     angular_speeds = sqrt(control_inputs.Data(2,:).^2 + control_inputs.Data(3,:).^2 + control_inputs.Data(4,:).^2);
     ytickformat('%.1f');
-    plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    if N_idx == 3 || N > PathFG_max_N
+        plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$N^*{=}',num2str(N),'$'));
+    else
+        plot(control_inputs.Time, angular_speeds, Color=color, LineWidth=line_width, DisplayName=strcat('$N{=}',num2str(N),'$'));
+    end
+    
     lgd.AutoUpdate = 'off';
     u_upper = sqrt(u_max(2)^2 + u_max(3)^2 + u_max(4)^2);
     yline(u_upper);

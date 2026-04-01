@@ -23,9 +23,12 @@ constr_mat = struct('Q_R_P_weight_matrix', Q_R_P_weight_matrix,...
                     'ub', ub); 
 
 dark_blue = [0 0.4470 0.7410];
-colors = ["#0072BD",... % blue
+colors = [
+        "#0072BD",...   % a darker blue
         "#ffA500",...   % orange
+        "#C64B8C",...   % dark red
         "#77AC30",...   % green
-        "#D95319",...   % red
+        "#2698D6",...   % medium blue
         "#4DBEEE",...   % light blue
+        "#D95319",...   % red
         'black'];

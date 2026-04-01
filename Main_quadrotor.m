@@ -174,10 +174,10 @@ sys = ss(A_continuous_outer, B_continuous_outer, C_outer, D_outer);
 
 
 %% Design MPC Controller
-prediction_horizons_MPC = [15];
-% prediction_horizons_MPC = [5, 15, 60, 15];
+prediction_horizons_MPC = [5];
+% prediction_horizons_MPC = [5, 15, 15, 60]; % NOTE: the 3rd is set to use solver 5 (MPCa)
 
-solver = 5; % read the NOTE in setMPCParameters file first
+solver = 2; % read the NOTE in setMPCParameters file first
 
 MPC_max_iters = 200; % optimization parameter
 
@@ -329,7 +329,7 @@ elseif isscalar(safety_margin_universal_multiple)
     fig1 = figure('Position',[0, 0, 480, 800], 'Name','DA FIGURE');
 
     for prediction_horizon_idx = 1:numel(prediction_horizons_MPC)  
-        if prediction_horizon_idx == 4   % MPCa
+        if prediction_horizon_idx == 3   % MPCa
             solver = 5;
         else
             solver = 2;
@@ -339,6 +339,8 @@ elseif isscalar(safety_margin_universal_multiple)
         setStructs;
 
         % Simulation
+        simulation_length = 22;
+        set_param('Sim_quadrotor', 'StopTime', num2str(simulation_length)); % simulation stop time
         disp("Simulink simulation started");
         clear ans;
         sim("Sim_quadrotor.slx");
