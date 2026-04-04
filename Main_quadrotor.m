@@ -328,7 +328,8 @@ elseif isscalar(safety_margin_universal_multiple)
 
     global fig1;
     % fig1 = figure(Position=[0, 0, 800, 2000], Name='DA FIGURE');
-    fig1 = figure('Position',[0, 0, 480, 800], 'Name','DA FIGURE');
+    % fig1 = figure('Position',[0, 0, 480, 800], 'Name','DA FIGURE');
+    fig1 = figure('Position',[0, 0, 480, 870], 'Name','DA FIGURE');
 
     for prediction_horizon_idx = 1:numel(prediction_horizons_MPC)  
         if prediction_horizon_idx == 3   % MPCa

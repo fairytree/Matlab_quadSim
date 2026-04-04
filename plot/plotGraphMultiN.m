@@ -60,7 +60,7 @@ function plotGraphMultiN( ...
     ax = subplot(fig5_rows, fig5_cols, 1);
     hold on;
     % lgd = legend('Position',[0.74 0.837 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);
-    lgd = legend('Position',[0.67 0.837 0.1 0.05], NumColumns=2, Orientation='horizontal',Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);   
+    lgd = legend('Position',[0.65 0.837 0.1 0.05], NumColumns=2, Orientation='horizontal',Box = 'off', BackgroundAlpha = 0, FontWeight=font_weight, FontSize=0.82*font_size);   
     lgd.ItemTokenSize = [12, 10]; 
     % lgd.Orientation = 'horizontal';
    
@@ -130,7 +130,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 2);
     hold on;
-    lgd = legend('Position', [0.54 0.72 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
+    lgd = legend('Position', [0.52 0.72 0.1 0.05], Box = 'off', BackgroundAlpha = 0, FontSize=0.8*font_size, FontWeight = font_weight, NumColumns=2, Orientation='horizontal');
     lgd.ItemTokenSize = [12, 10]; 
     yscale log;
     set(gca, 'YScale', 'log');  % Convert to log
@@ -155,7 +155,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 3);
     hold on;
-    lgd = legend('Position', [0.60 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
+    lgd = legend('Position', [0.59 0.525 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight); 
     lgd.ItemTokenSize = [14, 10]; 
     p_dot = sqrt(non_linear_full_states.Data(:, 4).^2 + non_linear_full_states.Data(:, 5).^2 + non_linear_full_states.Data(:, 6).^2);
     if solver == 5 || N > PathFG_max_N
@@ -175,7 +175,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 4);
     hold on;
-    lgd = legend('Position', [0.60 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
+    lgd = legend('Position', [0.59 0.35 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
     lgd.ItemTokenSize = [14, 10]; 
     ytickformat('%.1f');
     if solver == 5 || N > PathFG_max_N
@@ -194,7 +194,7 @@ function plotGraphMultiN( ...
     % subfigure
     ax = subplot(fig5_rows, fig5_cols, 5);
     hold on;
-    lgd = legend('Position', [0.60 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
+    lgd = legend('Position', [0.59 0.18 0.1 0.05], Orientation='horizontal', Box = 'off', BackgroundAlpha = 0, FontWeight = font_weight);
     lgd.ItemTokenSize = [14, 10]; 
     angular_speeds = sqrt(control_inputs.Data(2,:).^2 + control_inputs.Data(3,:).^2 + control_inputs.Data(4,:).^2);
     ytickformat('%.1f');
